@@ -78,7 +78,8 @@ button{cursor:pointer}
 .btn:disabled{opacity:.45;cursor:default}
 #stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:4px 12px;margin:10px 0 6px}
 #stats div{display:flex;flex-direction:column}
-#stats b{font-family:var(--font-label);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+#stats2 div{display:flex;flex-direction:column}
+#stats2 b,#stats b{font-family:var(--font-label);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
 #status{font-size:13px;color:var(--muted);margin-top:4px}
 #status:empty{display:none}
 #status.err{color:var(--route)}
@@ -86,6 +87,22 @@ button{cursor:pointer}
 #profile svg{display:block;width:100%;height:100%}
 #profile text{fill:var(--muted);font:11px var(--font-label);font-variant-numeric:tabular-nums}
 #tip{position:absolute;top:0;pointer-events:none;background:var(--panel-solid);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font:12px var(--font-label);white-space:nowrap;font-variant-numeric:tabular-nums}
+#appSeg{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1;min-width:0;max-width:420px}
+#appSeg button{border:1px solid var(--line);background:var(--chip);border-radius:8px;height:36px;font-weight:500;white-space:nowrap}
+#appSeg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+#fsParams{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px 12px;margin-top:8px}
+#fsParams label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
+#fsParams input{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 8px;font-variant-numeric:tabular-nums;font-size:15px;color:var(--fg)}
+#fsList{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+#fsList li{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+#fsList li b{font-family:var(--font-label);font-size:16px;grid-row:span 2;align-self:center;min-width:2.4em}
+#fsList li small{color:var(--muted)}
+#fsWarn{color:var(--route);font-size:13px;margin-top:6px}
+#fsWarn:empty{display:none}
+.fsnote{font-size:12px;color:var(--muted);margin-top:6px}
+.pump{min-width:30px;height:24px;padding:0 5px;border-radius:5px;background:#2160b8;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:grid;place-items:center;font:700 13px var(--font-label);cursor:pointer}
+.pump.end{background:#d1332b}
+.pump.start{background:#163f7a}
 .slopekey{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:4px}
 .slopekey span{display:inline-flex;align-items:center;gap:4px}
 #sheet.min #detail{display:none}
@@ -105,8 +122,10 @@ button{cursor:pointer}
 .pop dd{margin:0}
 @media (max-width:600px){
   #sheet{padding-left:12px;padding-right:12px}
-  #stats{grid-template-columns:repeat(3,1fr);margin:6px 0 2px}
-  #stats b{font-size:18px}
+  #appSeg{flex-basis:100%;max-width:none}
+  #mode{flex:1}
+  #stats,#stats2{grid-template-columns:repeat(3,1fr)!important;margin:6px 0 2px!important}
+  #stats b,#stats2 b{font-size:18px}
   #profile{height:104px}
   .slopekey{gap:6px;font-size:11px}
   #actions{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
@@ -183,13 +202,27 @@ button{cursor:pointer}
   <div id="status" role="status"></div>
   <div id="detail">
   <div class="row">
-    <select id="mode" aria-label="Routenart">
+    <div id="appSeg" role="group" aria-label="Modus">
+      <button data-app="tour" aria-pressed="true">Tour</button>
+      <button data-app="fs" aria-pressed="false">Förderstrecke</button>
+    </div>
+    <select id="mode" aria-label="Linienführung">
       <option value="hiking-mountain">Wandern / Bergwandern</option>
       <option value="mtb-zossebart">Mountainbike</option>
       <option value="trekking">Trekkingrad</option>
       <option value="straight">Gerade Linie (Luftlinie)</option>
     </select>
   </div>
+    <div id="fsStats" hidden>
+      <div id="stats2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:4px 12px;margin:10px 0 6px">
+        <div><span class="label">Länge</span><b id="fLen" class="num">–</b></div>
+        <div><span class="label">Höhendiff.</span><b id="fDh" class="num">–</b></div>
+        <div><span class="label">Pumpen gesamt</span><b id="fPumps" class="num">–</b></div>
+        <div><span class="label">Verstärker</span><b id="fBoost" class="num">–</b></div>
+        <div><span class="label">Druck am Ende</span><b id="fEnd" class="num">–</b></div>
+        <div><span class="label" id="fHoseLbl">B-Schläuche</span><b id="fHose" class="num">–</b></div>
+      </div>
+    </div>
     <div id="stats">
       <div><span class="label">Distanz</span><b id="sDist">–</b></div>
       <div><span class="label">Aufstieg</span><b id="sUp">–</b></div>
@@ -199,12 +232,33 @@ button{cursor:pointer}
       <div><span class="label" id="sTimeLbl">Gehzeit</span><b id="sTime">–</b></div>
     </div>
     <div id="profile"><div id="tip" hidden></div></div>
-    <div class="slopekey" aria-label="Legende Steigung">
+    <div class="slopekey" id="fsKey" hidden>
+      <span><i class="sw" style="background:#2160b8"></i>Druck in der Leitung (bar, rechte Achse)</span>
+      <span><i class="sw" style="background:repeating-linear-gradient(90deg,#d1332b 0 4px,transparent 4px 7px)"></i>Mindest-Eingangsdruck</span>
+      <span><i class="sw" style="background:#8b968f"></i>Gelände</span>
+    </div>
+    <div id="fsWarn" role="alert"></div>
+    <div class="slopekey" id="slopeKey" aria-label="Legende Steigung">
       <span><i class="sw" style="background:var(--g1)"></i>bis 6 %</span>
       <span><i class="sw" style="background:var(--g2)"></i>6–12 %</span>
       <span><i class="sw" style="background:var(--g3)"></i>12–18 %</span>
       <span><i class="sw" style="background:var(--g4)"></i>18–25 %</span>
       <span><i class="sw" style="background:var(--g5)"></i>über 25 %</span>
+    </div>
+    <div id="fsBox" hidden>
+      <details>
+        <summary class="label" style="cursor:pointer;margin-top:8px">Annahmen</summary>
+        <div id="fsParams">
+          <label for="fsFlow">Fördermenge (l/min)<input id="fsFlow" type="number" inputmode="decimal" min="100" step="50"></label>
+          <label for="fsOut">Ausgangsdruck Pumpe (bar)<input id="fsOut" type="number" inputmode="decimal" min="1" step="0.5"></label>
+          <label for="fsIn">Eingangsdruck nächste Pumpe (bar)<input id="fsIn" type="number" inputmode="decimal" min="0" step="0.5"></label>
+          <label for="fsLoss">Reibungsverlust (bar je 100 m)<input id="fsLoss" type="number" inputmode="decimal" min="0" step="0.1"></label>
+          <label for="fsHoseLen">Schlauchlänge (m)<input id="fsHoseLen" type="number" inputmode="decimal" min="5" step="5"></label>
+        </div>
+        <p class="fsnote">Höhenverlust 1 bar je 10,2 m Steigung, Höhengewinn bergab entsprechend. Der Reibungsverlust gilt für die angegebene Fördermenge; bei anderer Menge den Wert anpassen.</p>
+      </details>
+      <ol id="fsList" aria-label="Pumpenstandorte"></ol>
+      <p class="fsnote"><span id="fsSrc">Höhenquelle wird ermittelt …</span> Pumpenstandorte vor Ort prüfen: Zufahrt, Aufstellfläche, tatsächliche Schlauchführung.</p>
     </div>
     <div class="row" id="actions">
       <button class="btn" id="btnUndo">Rückgängig</button>
@@ -229,8 +283,9 @@ const saved = load();
 const state = Object.assign({
   base:"topo", hiking:true, mtb:false, cycling:false, hill:false, bike:false,
   terrain:true, exag:1.3, mode:"hiking-mountain", brouter:"https://brouter.de/brouter",
-  waypoints:null, view:null
+  waypoints:null, view:null, app:"tour"
 }, saved || {});
+state.fs = Object.assign({flow:800,out:10,pin:2,loss:1,hose:20}, state.fs||{});
 const firstRun = !saved;
 if(state.sheetMin==null) state.sheetMin = window.innerWidth < 700;
 if(!state.waypoints){
@@ -328,6 +383,20 @@ $("btnNorth").onclick=()=>map.easeTo({bearing:0,duration:500});
 function setSheet(min){ state.sheetMin=min; $("sheet").classList.toggle("min",min); $("grab").setAttribute("aria-expanded",!min);
   $("grabIcon").textContent=min?"▴":"▾"; save(); setTimeout(drawProfile,50); }
 $("grab").onclick=()=>setSheet(!state.sheetMin);
+function setApp(app){
+  state.app=app; save();
+  document.querySelectorAll("#appSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.app===app));
+  const fs=app==="fs";
+  $("fsStats").hidden=!fs; $("fsBox").hidden=!fs; $("fsKey").hidden=!fs;
+  $("stats").hidden=fs; $("slopeKey").hidden=fs;
+  if(!fs){ $("fsWarn").textContent=""; }
+  renderMarkers(); updateRoute();
+}
+document.querySelectorAll("#appSeg button").forEach(b=>b.onclick=()=>setApp(b.dataset.app));
+[["fsFlow","flow"],["fsOut","out"],["fsIn","pin"],["fsLoss","loss"],["fsHoseLen","hose"]].forEach(([id,k])=>{
+  $(id).value=state.fs[k];
+  $(id).addEventListener("change",e=>{ const v=parseFloat(String(e.target.value).replace(",",".")); if(isFinite(v)&&v>=0){ state.fs[k]=v; save(); updateRoute(); } else e.target.value=state.fs[k]; });
+});
 $("btnLayersClose").onclick=()=>{ $("layers").hidden=true; $("btnLayers").setAttribute("aria-pressed",false); };
 $("mode").onchange=e=>{state.mode=e.target.value;save();route();};
 
@@ -503,10 +572,14 @@ function updateRoute(){
     src&&src.setData({type:"FeatureCollection",features:[]});
     ["sDist","sUp","sDown","sMax","sGrade","sTime"].forEach(id=>$(id).textContent="–");
     $("summary").textContent=state.waypoints.length?"Noch einen Punkt setzen":"Keine Route";
-    profile={d:[],e:[],seg:[]}; drawProfile(); return;
+    profile={d:[],e:[],seg:[]}; fsResult=null; clearPumps();
+    ["fLen","fDh","fPumps","fBoost","fEnd","fHose"].forEach(id=>$(id).textContent="–"); $("fsList").innerHTML=""; $("fsWarn").textContent="";
+    drawProfile(); return;
   }
   const a=analyse(); profile=a;
   src.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routeCoords.map(c=>[c[0],c[1]])}});
+  if(state.app==="fs"){ updateFs(); return; }
+  clearPumps();
   // Route nach Steigung einfärben
   const stops=[]; let last=-1;
   a.seg.forEach(s=>{ const p=a.len?a.d[s.i0]/a.len:0; if(p>last){ stops.push(p, slopeColor(s.g)); last=p; } });
@@ -524,8 +597,227 @@ function updateRoute(){
   drawProfile();
 }
 
+// ---------- Wasserförderstrecke ----------
+const BAR_PER_M = 1/10.2;   // Höhendruck: 1 bar je 10,2 m Wassersäule
+let fsResult=null, fsSeq=0, pumpMarkers=[];
+const fmtBar=v=>v.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" bar";
+function clearPumps(){ pumpMarkers.forEach(m=>m.remove()); pumpMarkers=[]; }
+
+// Route gleichmäßig in Schritte von 5 m teilen und Höhen aus dem Geländemodell holen
+async function resampleRoute(step){
+  const c=routeCoords, cum=[0];
+  for(let i=1;i<c.length;i++) cum.push(cum[i-1]+hav(c[i-1],c[i]));
+  const len=cum[cum.length-1], n=Math.max(2,Math.min(6000,Math.round(len/step)+1)), st=len/(n-1);
+  const pts=[]; let j=0;
+  for(let k=0;k<n;k++){
+    const dd=k*st; while(j<c.length-2 && cum[j+1]<dd) j++;
+    const seg=cum[j+1]-cum[j]||1, t=Math.min(1,Math.max(0,(dd-cum[j])/seg));
+    const lng=c[j][0]+(c[j+1][0]-c[j][0])*t, lat=c[j][1]+(c[j+1][1]-c[j][1])*t;
+    const e0=c[j][2], e1=c[j+1][2]; const re=(e0!=null&&e1!=null)?e0+(e1-e0)*t:(e0??e1);
+    pts.push({d:dd,lng,lat,re});
+  }
+  const bz=await southTyrolHeights(pts);
+  const need=pts.map((p,i)=>bz[i]==null);
+  const dem=await Promise.all(pts.map((p,i)=>need[i]?elevationAt(p.lng,p.lat):null));
+  pts.forEach((p,i)=>{ p.h = bz[i]!=null ? bz[i] : dem[i]!=null ? dem[i] : (p.re ?? 0); p.src = bz[i]!=null ? "bz" : "global"; });
+  return pts;
+}
+
+// ---------- Südtirol: Digitales Geländemodell 2,5 m (Autonome Provinz Bozen, CC0) ----------
+const BZ_WCS="https://geoservices9.civis.bz.it/geoserver/wcs";
+const BZ_COV="p_bz-Elevation__DigitalTerrainModel-2.5m";
+const BZ_E0=605000, BZ_N0=5220800, BZ_RES=2.5;              // Mittelpunkt der ersten Rasterzelle
+const BZ_BOX=[604998.75,5119998.75,768201.25,5220801.25];  // Abdeckung des Dienstes
+const bzCache=new Map(); let bzFailed=false;
+// WGS84 → ETRS89 / UTM 32N (EPSG:25832)
+function toUtm32(lon,lat){
+  const a=6378137, f=1/298.257222101, e2=f*(2-f), k0=0.9996, ep2=e2/(1-e2);
+  const phi=lat*Math.PI/180, lam=(lon-9)*Math.PI/180, s=Math.sin(phi), c=Math.cos(phi), t=Math.tan(phi);
+  const N=a/Math.sqrt(1-e2*s*s), T=t*t, C=ep2*c*c, A=lam*c;
+  const M=a*((1-e2/4-3*e2*e2/64-5*e2**3/256)*phi-(3*e2/8+3*e2*e2/32+45*e2**3/1024)*Math.sin(2*phi)
+    +(15*e2*e2/256+45*e2**3/1024)*Math.sin(4*phi)-(35*e2**3/3072)*Math.sin(6*phi));
+  const x=k0*N*(A+(1-T+C)*A**3/6+(5-18*T+T*T+72*C-58*ep2)*A**5/120)+500000;
+  const y=k0*(M+N*t*(A*A/2+(5-T+9*C+4*C*C)*A**4/24+(61-58*T+T*T+600*C-330*ep2)*A**6/720));
+  return [x,y];
+}
+async function bzTile(i0,j0,i1,j1){
+  const key=[i0,j0,i1,j1].join("/"); if(bzCache.has(key)) return bzCache.get(key);
+  const pr=(async()=>{
+    const e0=BZ_E0+i0*BZ_RES-1, e1=BZ_E0+i1*BZ_RES+1, n1=BZ_N0-j0*BZ_RES+1, n0=BZ_N0-j1*BZ_RES-1;
+    const url=`${BZ_WCS}?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=${BZ_COV}`+
+      `&SUBSET=E(${e0},${e1})&SUBSET=N(${n0},${n1})&FORMAT=application/gml%2Bxml`;
+    const r=await fetch(url); if(!r.ok) throw new Error("WCS "+r.status);
+    const txt=await r.text();
+    const lo=/<gml:low>\s*(\d+)\s+(\d+)\s*<\/gml:low>/.exec(txt), hi=/<gml:high>\s*(\d+)\s+(\d+)\s*<\/gml:high>/.exec(txt);
+    const tl=/<gml:tupleList[^>]*>([\s\S]*?)<\/gml:tupleList>/.exec(txt);
+    if(!lo||!hi||!tl) throw new Error("WCS: unerwartete Antwort");
+    const gi0=+lo[1], gj0=+lo[2], ni=+hi[1]-gi0+1, nj=+hi[2]-gj0+1;
+    const vals=tl[1].trim().split(/[\s,]+/).map(Number);
+    if(vals.length<ni*nj) throw new Error("WCS: unvollständig");
+    return {gi0,gj0,ni,nj,vals};
+  })();
+  bzCache.set(key,pr); pr.catch(()=>bzCache.delete(key)); return pr;
+}
+function bzSample(t,E,N){
+  const fi=(E-BZ_E0)/BZ_RES-t.gi0, fj=(BZ_N0-N)/BZ_RES-t.gj0;
+  const i=Math.floor(fi), j=Math.floor(fj); if(i<0||j<0||i+1>=t.ni||j+1>=t.nj) return null;
+  const v=(a,b)=>{ const x=t.vals[b*t.ni+a]; return x<=-9998?null:x; };
+  const q00=v(i,j),q10=v(i+1,j),q01=v(i,j+1),q11=v(i+1,j+1); if([q00,q10,q01,q11].some(q=>q==null)) return null;
+  const u=fi-i, w=fj-j; return q00*(1-u)*(1-w)+q10*u*(1-w)+q01*(1-u)*w+q11*u*w;
+}
+// Höhen für alle Punkte; Abschnitte von höchstens ca. 400 m Kantenlänge, je eine Anfrage
+async function southTyrolHeights(pts){
+  const out=pts.map(()=>null); if(bzFailed && !state.bzRetry) return out;
+  const utm=pts.map(p=>toUtm32(p.lng,p.lat));
+  const inBox=([E,N])=>E>BZ_BOX[0]+10&&E<BZ_BOX[2]-10&&N>BZ_BOX[1]+10&&N<BZ_BOX[3]-10;
+  const chunks=[]; let cur=null;
+  utm.forEach((u,k)=>{
+    if(!inBox(u)){ cur=null; return; }
+    if(cur){ const nb=[Math.min(cur.b[0],u[0]),Math.min(cur.b[1],u[1]),Math.max(cur.b[2],u[0]),Math.max(cur.b[3],u[1])];
+      if(nb[2]-nb[0]<=400&&nb[3]-nb[1]<=400){ cur.b=nb; cur.idx.push(k); return; } }
+    cur={b:[u[0],u[1],u[0],u[1]],idx:[k]}; chunks.push(cur);
+  });
+  if(!chunks.length) return out;
+  let ok=0, fail=0, next=0;
+  const worker=async()=>{ while(next<chunks.length){ const c=chunks[next++];
+    const i0=Math.floor((c.b[0]-BZ_E0)/BZ_RES)-2, i1=Math.ceil((c.b[2]-BZ_E0)/BZ_RES)+2;
+    const j0=Math.floor((BZ_N0-c.b[3])/BZ_RES)-2, j1=Math.ceil((BZ_N0-c.b[1])/BZ_RES)+2;
+    try{ const t=await bzTile(i0,j0,i1,j1); c.idx.forEach(k=>{ out[k]=bzSample(t,utm[k][0],utm[k][1]); }); ok++; }
+    catch(e){ fail++; if(!ok && fail>=2){ bzFailed=true; next=chunks.length; } }
+  } };
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  return out;
+}
+
+// Pumpen so setzen, dass der Eingangsdruck jeder Folgepumpe nie unter den Mindestwert fällt
+function planPumps(pts,cfg){
+  const loss=cfg.loss/100, out=cfg.out, pin=cfg.pin;
+  const pAt=(k0,i)=>out - loss*(pts[i].d-pts[k0].d) - BAR_PER_M*(pts[i].h-pts[k0].h);
+  const pumps=[{i:0,pin:null,kind:"start"}], line=[{d:0,p:out}];
+  let k0=0, maxP=out, tooSteep=false;
+  for(let i=1;i<pts.length;i++){
+    let pr=pAt(k0,i);
+    if(pr<pin){
+      let j=i-1; if(j<=k0){ j=i; tooSteep=true; }
+      const pj=pAt(k0,j);
+      pumps.push({i:j,pin:pj,kind:"boost"}); line.push({d:pts[j].d,p:pj},{d:pts[j].d,p:out});
+      k0=j; pr=pAt(k0,i);
+    }
+    if(i!==k0) line.push({d:pts[i].d,p:pr});
+    maxP=Math.max(maxP,pr);
+  }
+  const last=pts.length-1, endP=k0===last?out:pAt(k0,last);
+  const lastPump=pumps[pumps.length-1];
+  if(lastPump.i===last && lastPump.kind==="boost"){ lastPump.kind="end"; }
+  else pumps.push({i:last,pin:endP,kind:"end"});
+  return {pumps,line,maxP,tooSteep,endPin:pumps[pumps.length-1].pin};
+}
+
+async function updateFs(){
+  const seq=++fsSeq; const cfg=state.fs;
+  $("summary").textContent="Förderstrecke wird berechnet …";
+  const pts=await resampleRoute(5); if(seq!==fsSeq) return;
+  const plan=planPumps(pts,cfg);
+  const len=pts[pts.length-1].d, dh=pts[pts.length-1].h-pts[0].h;
+  fsResult={pts,...plan,len};
+  // Leitung blau einfärben
+  map.setPaintProperty("route-line","line-gradient",["interpolate",["linear"],["line-progress"],0,"#2160b8",1,"#2160b8"]);
+  const n=plan.pumps.length, hoses=Math.ceil(len/cfg.hose);
+  $("fLen").textContent=fmtKm(len);
+  $("fDh").textContent=(dh>=0?"+":"−")+fmtM(Math.abs(dh));
+  $("fPumps").textContent=String(n);
+  $("fBoost").textContent=String(Math.max(0,n-2));
+  $("fEnd").textContent=fmtBar(plan.endPin);
+  $("fHose").textContent=`${hoses} +${Math.ceil(hoses*0.1)}`; $("fHoseLbl").textContent=`B-Schl. ${cfg.hose} m`; $("fHose").title="+10 % Reserve";
+  $("summary").textContent=`${fmtKm(len)} · ${n} Pumpen`;
+  const nbz=pts.filter(p=>p.src==="bz").length, share=nbz/pts.length;
+  $("fsSrc").textContent = share>0.98 ? "Höhen: Geländemodell Südtirol, 2,5 m Raster (Laserscan, Autonome Provinz Bozen)."
+    : share>0 ? `Höhen: ${Math.round(share*100)} % aus dem Südtiroler 2,5-m-Modell, der Rest aus dem weltweiten Modell (ca. 30 m).`
+    : bzFailed ? "Höhen: weltweites Geländemodell (ca. 30 m). Der Südtiroler 2,5-m-Dienst war nicht erreichbar."
+    : "Höhen: weltweites Geländemodell (ca. 30 m Raster).";
+  const warn=[];
+  if(plan.tooSteep) warn.push("Die Steigung ist an mindestens einer Stelle so groß, dass der Mindest-Eingangsdruck auch mit einer Pumpe alle 5 m nicht erreicht wird.");
+  if(plan.maxP>cfg.out+0.05) warn.push(`Bergab steigt der Druck auf bis zu ${fmtBar(plan.maxP)}, also über den Ausgangsdruck. Druckbegrenzung oder Ausgangsdruck der Pumpe anpassen.`);
+  $("fsWarn").textContent=warn.join(" ");
+  // Liste und Kartenmarker
+  clearPumps(); const list=$("fsList"); list.innerHTML="";
+  plan.pumps.forEach((pu,k)=>{
+    const pt=pts[pu.i], name="P"+(k+1);
+    const role=pu.kind==="start"?"Wasserentnahme":pu.kind==="end"?"Löschangriff":"Verstärkerpumpe";
+    const prev=k?pts[plan.pumps[k-1].i]:null;
+    const detail=pu.kind==="start"
+      ? `km 0,0 · ${fmtM(pt.h)} · Ausgang ${fmtBar(cfg.out)}`
+      : `km ${(pt.d/1000).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} · ${fmtM(pt.h)} · Eingang ${fmtBar(pu.pin)}`;
+    const extra=prev?`${fmtM(pt.d-prev.d)} nach ${"P"+k}, ${pt.h-prev.h>=0?"+":"−"}${fmtM(Math.abs(pt.h-prev.h))} Höhe`:"Saugseite / Hydrant";
+    const li=document.createElement("li"); const b=document.createElement("b"); b.textContent=name;
+    const t1=document.createElement("span"); t1.textContent=`${role} · ${detail}`;
+    const t2=document.createElement("small"); t2.textContent=extra;
+    li.append(b,t1,t2); li.onclick=()=>map.flyTo({center:[pt.lng,pt.lat],zoom:Math.max(map.getZoom(),16)});
+    list.append(li);
+    const el=document.createElement("div"); el.className="pump"+(pu.kind==="end"?" end":pu.kind==="start"?" start":""); el.textContent=name;
+    el.title=`${name} – ${role}`;
+    el.addEventListener("click",ev=>{ ev.stopPropagation();
+      const div=document.createElement("div"); div.className="pop";
+      const h=document.createElement("strong"); h.textContent=`${name} – ${role}`; div.append(h);
+      const dl=document.createElement("dl"); const add=(a,v)=>{const dt=document.createElement("dt"),dd=document.createElement("dd");dt.textContent=a;dd.textContent=v;dl.append(dt,dd);};
+      add("Kilometer",(pt.d/1000).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})); add("Höhe",fmtM(pt.h));
+      if(pu.pin!=null) add("Eingangsdruck",fmtBar(pu.pin));
+      if(pu.kind!=="end") add("Ausgangsdruck",fmtBar(cfg.out));
+      if(prev) add("Abstand",fmtM(pt.d-prev.d));
+      div.append(dl);
+      new maplibregl.Popup({offset:18}).setLngLat([pt.lng,pt.lat]).setDOMContent(div).addTo(map);
+    });
+    pumpMarkers.push(new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,-16]}).setLngLat([pt.lng,pt.lat]).addTo(map));
+  });
+  drawProfile();
+}
+
+function drawFsProfile(){
+  const box=$("profile"); box.querySelectorAll("svg").forEach(s=>s.remove());
+  const W=box.clientWidth, H=box.clientHeight; if(!W||!H) return;
+  const svg=document.createElementNS(NS,"svg"); svg.setAttribute("viewBox",`0 0 ${W} ${H}`); box.prepend(svg);
+  const mk=(n,a)=>{ const el=document.createElementNS(NS,n); for(const k in a) el.setAttribute(k,a[k]); svg.append(el); return el; };
+  const {pts,line,pumps,len}=fsResult, cfg=state.fs;
+  const L=44,R=26,T=14,B=20, pw=W-L-R, ph=H-T-B;
+  let lo=Math.min(...pts.map(p=>p.h)), hi=Math.max(...pts.map(p=>p.h));
+  const span=Math.max(50,hi-lo); const stepE=[10,20,50,100,200,250,500,1000].find(s=>span/s<=4)||1000;
+  lo=Math.floor(lo/stepE)*stepE; hi=Math.ceil(hi/stepE)*stepE; if(hi===lo) hi=lo+stepE;
+  const pMax=Math.max(cfg.out,...line.map(q=>q.p)), pTop=Math.ceil(pMax/2)*2;
+  const X=v=>L+v/len*pw, Y=v=>T+(1-(v-lo)/(hi-lo))*ph, YP=v=>T+(1-Math.max(0,v)/pTop)*ph;
+  const grid=css("--line"), fg=css("--fg");
+  for(let v=lo;v<=hi+0.1;v+=stepE){ mk("line",{x1:L,x2:W-R,y1:Y(v),y2:Y(v),stroke:grid,"stroke-width":1});
+    const t=mk("text",{x:L-6,y:Y(v)+4,"text-anchor":"end"}); t.textContent=v.toLocaleString("de-DE"); }
+  const pStep=pTop>12?4:2;
+  for(let v=0;v<=pTop;v+=pStep){ const t=mk("text",{x:W-R+4,y:YP(v)+4,"text-anchor":"start",fill:"#2160b8"}); t.textContent=v; }
+  { const t=mk("text",{x:W-2,y:T-3,"text-anchor":"end",fill:"#2160b8"}); t.textContent="bar"; }
+  const stepD=[100,200,500,1000,2000,5000,10000,20000,50000].find(s=>len/s<=6)||50000;
+  for(let v=0;v<=len;v+=stepD){ const t=mk("text",{x:X(v),y:H-5,"text-anchor":v===0?"start":"middle"}); t.textContent=(v/1000).toLocaleString("de-DE")+(v===0?" km":""); }
+  let area=`M${X(0)},${Y(lo)}`; pts.forEach(p=>area+=`L${X(p.d)},${Y(p.h)}`); area+=`L${X(len)},${Y(lo)}Z`;
+  mk("path",{d:area,fill:"#8b968f","fill-opacity":0.45,stroke:fg,"stroke-width":1});
+  mk("line",{x1:L,x2:W-R,y1:YP(cfg.pin),y2:YP(cfg.pin),stroke:"#d1332b","stroke-width":1.2,"stroke-dasharray":"4 3"});
+  pumps.forEach((pu,k)=>{ const x=X(pts[pu.i].d);
+    mk("line",{x1:x,x2:x,y1:T,y2:T+ph,stroke:pu.kind==="end"?"#d1332b":"#2160b8","stroke-width":1,"stroke-dasharray":"2 2"});
+    const t=mk("text",{x:Math.min(W-R-4,Math.max(L+4,x)),y:T-3,"text-anchor":"middle",fill:pu.kind==="end"?"#d1332b":"#2160b8","font-weight":"700"}); t.textContent="P"+(k+1); });
+  let pl=""; line.forEach((q,i)=>pl+=(i?"L":"M")+X(q.d)+","+YP(q.p));
+  mk("path",{d:pl,fill:"none",stroke:"#2160b8","stroke-width":2});
+  const cursor=mk("line",{x1:0,x2:0,y1:T,y2:T+ph,stroke:fg,"stroke-width":1,visibility:"hidden"});
+  const pressureAt=dist=>{ let k=line.findIndex(q=>q.d>=dist); if(k<=0) return line[0].p; return line[k].p; };
+  const move=ev=>{
+    const r=svg.getBoundingClientRect(); const px=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;
+    const dist=Math.max(0,Math.min(len,(px-L)/pw*len)); const i=Math.min(pts.length-1,Math.round(dist/len*(pts.length-1)));
+    const x=X(pts[i].d); cursor.setAttribute("x1",x); cursor.setAttribute("x2",x); cursor.setAttribute("visibility","visible");
+    const tip=$("tip"); tip.hidden=false; tip.textContent=`${fmtKm(pts[i].d)} · ${fmtM(pts[i].h)} · ${fmtBar(pressureAt(pts[i].d))}`;
+    tip.style.left=Math.min(W-tip.offsetWidth,Math.max(0,x-tip.offsetWidth/2))+"px";
+    showHover([pts[i].lng,pts[i].lat]);
+  };
+  const leave=()=>{ cursor.setAttribute("visibility","hidden"); $("tip").hidden=true; showHover(null); };
+  svg.addEventListener("pointermove",move); svg.addEventListener("pointerdown",move); svg.addEventListener("pointerleave",leave);
+  svg.addEventListener("touchmove",e=>{e.preventDefault();move(e);},{passive:false}); svg.addEventListener("touchend",leave);
+}
+
 const NS="http://www.w3.org/2000/svg";
 function drawProfile(){
+  if(state.app==="fs" && fsResult) return drawFsProfile();
   const box=$("profile"); box.querySelectorAll("svg").forEach(s=>s.remove());
   const W=box.clientWidth, H=box.clientHeight; if(!W||!H) return;
   const svg=document.createElementNS(NS,"svg"); svg.setAttribute("viewBox",`0 0 ${W} ${H}`); box.prepend(svg);
@@ -631,7 +923,10 @@ $("btnGpx").onclick=()=>{
   if(routeCoords.length<2){ setStatus("Es gibt noch keine Route zum Speichern.",true); return; }
   const name="Tour "+new Date().toLocaleDateString("de-DE");
   const pts=routeCoords.map(c=>`<trkpt lat="${c[1].toFixed(6)}" lon="${c[0].toFixed(6)}">${c[2]!=null?`<ele>${c[2].toFixed(1)}</ele>`:""}</trkpt>`).join("\n");
-  const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Tourenplaner 3D" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><name>${esc(name)}</name></metadata>\n<trk><name>${esc(name)}</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>`;
+  const wpts=(state.app==="fs"&&fsResult)?fsResult.pumps.map((pu,k)=>{ const p=fsResult.pts[pu.i];
+    const role=pu.kind==="start"?"Wasserentnahme":pu.kind==="end"?"Löschangriff":"Verstärkerpumpe";
+    return `<wpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><ele>${p.h.toFixed(1)}</ele><name>P${k+1} ${role}</name>${pu.pin!=null?`<desc>Eingangsdruck ${pu.pin.toFixed(1)} bar</desc>`:""}</wpt>\n`; }).join(""):"";
+  const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Tourenplaner 3D" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><name>${esc(name)}</name></metadata>\n${wpts}<trk><name>${esc(name)}</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>`;
   const url=URL.createObjectURL(new Blob([gpx],{type:"application/gpx+xml"}));
   const a=document.createElement("a"); a.href=url; a.download="tour-"+new Date().toISOString().slice(0,10)+".gpx"; document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -654,7 +949,7 @@ $("gpxFile").onchange=async e=>{
 
 // ---------- Start ----------
 let started=false;
-function start(){ if(started) return; started=true; setSheet(state.sheetMin);
+function start(){ if(started) return; started=true; setSheet(state.sheetMin); setApp(state.app);
   applyLayers(); renderMarkers(); route().then(()=>{ if(firstRun && routeCoords.length) setStatus("Beispielroute bei Lana. „Löschen“ und „Punkte setzen“ für eine eigene Tour."); });
   if(state.bike) loadBike();
 }
