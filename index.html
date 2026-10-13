@@ -173,6 +173,8 @@ button{cursor:pointer}
     <label class="chk"><input type="checkbox" id="ovHiking" checked> Wanderwege mit Nummern</label>
     <label class="chk"><input type="checkbox" id="ovMtb"> MTB-Routen</label>
     <label class="chk"><input type="checkbox" id="ovCycling"> Radrouten</label>
+    <label class="chk"><input type="checkbox" id="ovWmSmall"> Wegnummern klein</label>
+    <label class="chk"><input type="checkbox" id="ovSlope"> Route nach Steigung einfärben</label>
     <label class="chk"><input type="checkbox" id="ovHof"> Hofnamen (Südtirol)</label>
     <label class="chk"><input type="checkbox" id="ovFlur"> Flurnamen (Südtirol)</label>
     <div class="hint" id="namesHint" hidden></div>
@@ -293,7 +295,7 @@ const saved = load();
 const state = Object.assign({
   base:"topo", hiking:true, mtb:false, cycling:false, hill:false, bike:false,
   terrain:true, exag:1.3, mode:"hiking-mountain", brouter:"https://brouter.de/brouter",
-  waypoints:null, view:null, app:"tour", flur:false, hof:false
+  waypoints:null, view:null, app:"tour", flur:false, hof:false, wmSmall:true, slopeRoute:false
 }, saved || {});
 state.fs = Object.assign({flow:800,out:10,pin:2,loss:1,hose:20,skip:8}, state.fs||{});
 if(state.fs.out1==null) state.fs.out1=state.fs.out;
@@ -310,6 +312,8 @@ const SLOPE_CLASSES = [6,12,18,25];
 const slopeColor = g => { const a=Math.abs(g); return a<6?"#3b8f4e":a<12?"#c9b52c":a<18?"#e07b24":a<25?"#c8312b":"#6b1d4a"; };
 
 // ---------- Karte ----------
+const ROUTE_COLOR="#d6168b";   // Magenta: kommt in Topo-Karte und Wegmarkierungen nicht vor
+const WM_TILE=()=>state.wmSmall?128:256;   // 128 = Wegnummern halb so groß
 const TERRAIN_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const style = {
   version:8,
@@ -321,10 +325,10 @@ const style = {
     sat:{type:"raster",tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19,
       attribution:'Luftbild: © Esri, Maxar, Earthstar Geographics'},
     satlabels:{type:"raster",tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19},
-    wmHiking:{type:"raster",tiles:["https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"],tileSize:256,maxzoom:18,
+    wmHiking:{type:"raster",tiles:["https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"],tileSize:WM_TILE(),maxzoom:18,
       attribution:'Wege: © <a href="https://waymarkedtrails.org">Waymarked Trails</a>'},
-    wmMtb:{type:"raster",tiles:["https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png"],tileSize:256,maxzoom:18},
-    wmCycling:{type:"raster",tiles:["https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"],tileSize:256,maxzoom:18},
+    wmMtb:{type:"raster",tiles:["https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png"],tileSize:WM_TILE(),maxzoom:18},
+    wmCycling:{type:"raster",tiles:["https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"],tileSize:WM_TILE(),maxzoom:18},
     dem:{type:"raster-dem",tiles:[TERRAIN_URL],encoding:"terrarium",tileSize:256,maxzoom:15,
       attribution:'Gelände: Mapzen/AWS Terrain Tiles · Daten © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'},
     demHill:{type:"raster-dem",tiles:[TERRAIN_URL],encoding:"terrarium",tileSize:256,maxzoom:15},
@@ -341,9 +345,9 @@ const style = {
     {id:"sat",type:"raster",source:"sat",layout:{visibility:"none"}},
     {id:"satlabels",type:"raster",source:"satlabels",layout:{visibility:"none"}},
     {id:"hill",type:"hillshade",source:"demHill",layout:{visibility:"none"},paint:{"hillshade-exaggeration":0.35,"hillshade-shadow-color":"#26332b"}},
-    {id:"wmCycling",type:"raster",source:"wmCycling",layout:{visibility:"none"},paint:{"raster-opacity":0.85}},
-    {id:"wmMtb",type:"raster",source:"wmMtb",layout:{visibility:"none"},paint:{"raster-opacity":0.9}},
-    {id:"wmHiking",type:"raster",source:"wmHiking",paint:{"raster-opacity":0.9}},
+    {id:"wmCycling",type:"raster",source:"wmCycling",minzoom:11,layout:{visibility:"none"},paint:{"raster-opacity":0.85}},
+    {id:"wmMtb",type:"raster",source:"wmMtb",minzoom:11,layout:{visibility:"none"},paint:{"raster-opacity":0.9}},
+    {id:"wmHiking",type:"raster",source:"wmHiking",minzoom:11,paint:{"raster-opacity":0.9}},
     {id:"bike-casing",type:"line",source:"bike",layout:{visibility:"none","line-cap":"round"},paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],13,3,17,7],"line-opacity":0.7}},
     {id:"bike-line",type:"line",source:"bike",filter:["!=",["get","cls"],"no"],layout:{visibility:"none","line-cap":"round"},
       paint:{"line-color":["match",["get","cls"],"easy","#3b8f4e","medium","#c9b52c","hard","#c8312b","#8b968f"],"line-width":["interpolate",["linear"],["zoom"],13,1.8,17,4.5]}},
@@ -357,8 +361,9 @@ const style = {
     {id:"hof-label",type:"symbol",source:"namesHof",minzoom:13,layout:{visibility:"none","text-field":["get","n"],"text-font":["Noto Sans Bold"],
       "text-size":["interpolate",["linear"],["zoom"],13,10.5,17,13.5],"text-anchor":"top","text-offset":[0,0.5],"text-padding":2,"symbol-sort-key":1},
       paint:{"text-color":"#5a1f12","text-halo-color":"rgba(255,255,255,0.95)","text-halo-width":1.5}},
-    {id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":8}},
-    {id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#d1332b","line-width":5}}
+    {id:"route-outline",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#14101a","line-opacity":0.6,"line-width":["interpolate",["linear"],["zoom"],10,9,16,14]}},
+    {id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],10,7,16,11]}},
+    {id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":ROUTE_COLOR,"line-width":["interpolate",["linear"],["zoom"],10,4,16,7]}}
   ]
 };
 
@@ -377,6 +382,7 @@ function applyLayers(){
   const vis = (id,on)=>map.getLayer(id)&&map.setLayoutProperty(id,"visibility",on?"visible":"none");
   vis("topo",state.base==="topo"); vis("osm",state.base==="osm");
   vis("sat",state.base==="sat"||state.base==="hybrid"); vis("satlabels",state.base==="hybrid");
+  $("ovWmSmall").checked=state.wmSmall; $("ovSlope").checked=state.slopeRoute;
   vis("flur-label",state.flur); vis("hof-dot",state.hof); vis("hof-label",state.hof);
   $("ovFlur").checked=state.flur; $("ovHof").checked=state.hof; $("namesHint").hidden=!(state.flur||state.hof);
   vis("wmHiking",state.hiking); vis("wmMtb",state.mtb); vis("wmCycling",state.cycling); vis("hill",state.hill);
@@ -396,6 +402,17 @@ function applyLayers(){
 $("btnLayers").onclick=()=>{ const p=$("layers").hidden; $("layers").hidden=!p; $("btnLayers").setAttribute("aria-pressed",p); };
 document.querySelectorAll("#baseSeg button").forEach(b=>b.onclick=()=>{state.base=b.dataset.base;applyLayers();});
 [["ovHiking","hiking"],["ovMtb","mtb"],["ovCycling","cycling"],["ovHill","hill"]].forEach(([id,k])=>$(id).onchange=e=>{state[k]=e.target.checked;applyLayers();});
+$("ovSlope").onchange=e=>{state.slopeRoute=e.target.checked;save();updateRoute();};
+$("ovWmSmall").onchange=e=>{state.wmSmall=e.target.checked;save();
+  // Wegmarkierungs-Quellen mit neuer Kachelgröße neu anlegen
+  [["wmCycling","cycling"],["wmMtb","mtb"],["wmHiking","hiking"]].forEach(([id,k])=>{
+    const layer=map.getStyle().layers.find(l=>l.id===id), idx=map.getStyle().layers.findIndex(l=>l.id===id);
+    const before=map.getStyle().layers[idx+1]?.id, src=map.getStyle().sources[id];
+    map.removeLayer(id); map.removeSource(id);
+    map.addSource(id,Object.assign({},src,{tileSize:WM_TILE()})); map.addLayer(layer,before);
+  });
+  applyLayers();
+};
 $("ovFlur").onchange=e=>{state.flur=e.target.checked;applyLayers();loadNames();};
 $("ovHof").onchange=e=>{state.hof=e.target.checked;applyLayers();loadNames();};
 // Flur- und Hofnamen: Flurnamen Südtirols, Naturmuseum Südtirol (CC BY-NC-ND 4.0); Datei flurnamen.json neben index.html
@@ -634,7 +651,8 @@ function updateRoute(){
   // Route nach Steigung einfärben
   const stops=[]; let last=-1;
   a.seg.forEach(s=>{ const p=a.len?a.d[s.i0]/a.len:0; if(p>last){ stops.push(p, slopeColor(s.g)); last=p; } });
-  if(stops.length>=2){
+  if(!state.slopeRoute) map.setPaintProperty("route-line","line-gradient",["interpolate",["linear"],["line-progress"],0,ROUTE_COLOR,1,ROUTE_COLOR]);
+  else if(stops.length>=2){
     const expr=["step",["line-progress"],stops[1]]; for(let i=2;i<stops.length;i+=2) expr.push(stops[i],stops[i+1]);
     map.setPaintProperty("route-line","line-gradient",expr);
   }
@@ -776,7 +794,7 @@ async function updateFs(){
   const len=pts[pts.length-1].d, dh=pts[pts.length-1].h-pts[0].h;
   fsResult={pts,...plan,len};
   // Leitung blau einfärben
-  map.setPaintProperty("route-line","line-gradient",["interpolate",["linear"],["line-progress"],0,"#2160b8",1,"#2160b8"]);
+  map.setPaintProperty("route-line","line-gradient",["interpolate",["linear"],["line-progress"],0,ROUTE_COLOR,1,ROUTE_COLOR]);
   const n=plan.pumps.length, hoses=Math.ceil(len/cfg.hose);
   $("fLen").textContent=fmtKm(len);
   $("fDh").textContent=(dh>=0?"+":"−")+fmtM(Math.abs(dh));
