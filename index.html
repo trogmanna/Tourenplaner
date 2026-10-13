@@ -27,6 +27,7 @@
   --bg:#121815; --panel:#18211ced; --panel-solid:#18211c; --fg:#e4ebe6; --muted:#9aaba0; --line:#2c3a31;
   --accent:#5fb487; --accent-fg:#0e1611; --chip:#223028; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 var(--font-ui);-webkit-tap-highlight-color:transparent}
 #map{position:fixed;inset:0}
 button,select,input{font:inherit;color:inherit}
@@ -65,8 +66,10 @@ button{cursor:pointer}
 
 /* Routenpanel */
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--panel-solid);border-top:1px solid var(--line);box-shadow:0 -2px 14px rgba(20,35,25,.16);border-radius:16px 16px 0 0;padding:8px 16px calc(env(safe-area-inset-bottom,0px) + 12px);max-width:900px;margin:0 auto}
-#grab{display:block;margin:0 auto 6px;width:44px;height:18px;border:0;background:none;padding:0}
-#grab::before{content:"";display:block;width:36px;height:4px;border-radius:2px;background:var(--line);margin:7px auto}
+#bar{flex-wrap:nowrap}
+#summary{flex:1;min-width:0;font:600 16px var(--font-label);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sheet{max-height:62%;overflow-y:auto}
+#detail{margin-top:8px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #mode{height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);padding:0 8px;font-weight:500}
 .btn{height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);padding:0 12px;font-weight:500;white-space:nowrap}
@@ -76,7 +79,8 @@ button{cursor:pointer}
 #stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:4px 12px;margin:10px 0 6px}
 #stats div{display:flex;flex-direction:column}
 #stats b{font-family:var(--font-label);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-#status{font-size:13px;color:var(--muted);min-height:18px;flex-basis:100%}
+#status{font-size:13px;color:var(--muted);margin-top:4px}
+#status:empty{display:none}
 #status.err{color:var(--route)}
 #profile{position:relative;height:150px;margin-top:4px;touch-action:none}
 #profile svg{display:block;width:100%;height:100%}
@@ -85,6 +89,7 @@ button{cursor:pointer}
 .slopekey{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:4px}
 .slopekey span{display:inline-flex;align-items:center;gap:4px}
 #sheet.min #detail{display:none}
+#sheet.min{padding-top:10px}
 #actions{margin-top:8px}
 
 /* Marker */
@@ -132,6 +137,7 @@ button{cursor:pointer}
 </div>
 
 <div id="layers" hidden>
+  <button class="btn" id="btnLayersClose" style="align-self:flex-end;height:32px">Schließen ✕</button>
   <div>
     <div class="label">Karte</div>
     <div class="seg" id="baseSeg" style="margin-top:6px">
@@ -169,18 +175,21 @@ button{cursor:pointer}
 </div>
 
 <section id="sheet" aria-label="Route">
-  <button id="grab" aria-label="Panel ein- oder ausklappen"></button>
-  <div class="row">
+  <div class="row" id="bar">
     <button class="btn" id="btnPlan" aria-pressed="false">Punkte setzen</button>
+    <span id="summary" aria-live="polite">Keine Route</span>
+    <button class="btn" id="grab" aria-expanded="true" aria-label="Routendetails ein- oder ausblenden"><span id="grabIcon">▾</span> Details</button>
+  </div>
+  <div id="status" role="status"></div>
+  <div id="detail">
+  <div class="row">
     <select id="mode" aria-label="Routenart">
       <option value="hiking-mountain">Wandern / Bergwandern</option>
       <option value="mtb-zossebart">Mountainbike</option>
       <option value="trekking">Trekkingrad</option>
       <option value="straight">Gerade Linie (Luftlinie)</option>
     </select>
-    <span id="status" role="status"></span>
   </div>
-  <div id="detail">
     <div id="stats">
       <div><span class="label">Distanz</span><b id="sDist">–</b></div>
       <div><span class="label">Aufstieg</span><b id="sUp">–</b></div>
@@ -223,6 +232,7 @@ const state = Object.assign({
   waypoints:null, view:null
 }, saved || {});
 const firstRun = !saved;
+if(state.sheetMin==null) state.sheetMin = window.innerWidth < 700;
 if(!state.waypoints){
   // Beispielroute bei Lana (beim ersten Start; „Löschen“ entfernt sie)
   state.waypoints = [[11.1565,46.6118],[11.1352,46.6028],[11.1183,46.5936]];
@@ -315,7 +325,10 @@ $("btn3d").onclick=()=>{
   map.easeTo({pitch:state.terrain?58:0,duration:600});
 };
 $("btnNorth").onclick=()=>map.easeTo({bearing:0,duration:500});
-$("grab").onclick=()=>{ $("sheet").classList.toggle("min"); setTimeout(drawProfile,50); };
+function setSheet(min){ state.sheetMin=min; $("sheet").classList.toggle("min",min); $("grab").setAttribute("aria-expanded",!min);
+  $("grabIcon").textContent=min?"▴":"▾"; save(); setTimeout(drawProfile,50); }
+$("grab").onclick=()=>setSheet(!state.sheetMin);
+$("btnLayersClose").onclick=()=>{ $("layers").hidden=true; $("btnLayers").setAttribute("aria-pressed",false); };
 $("mode").onchange=e=>{state.mode=e.target.value;save();route();};
 
 let meMarker=null;
@@ -361,6 +374,7 @@ function pushHistory(){ undoStack.push(JSON.stringify(state.waypoints)); if(undo
 
 $("btnPlan").onclick=()=>{ planning=!planning; $("btnPlan").setAttribute("aria-pressed",planning);
   $("btnPlan").textContent=planning?"Fertig":"Punkte setzen"; map.getCanvas().style.cursor=planning?"crosshair":"";
+  if(planning && window.innerWidth<700) setSheet(true);
   if(planning) setStatus("Auf die Karte tippen, um Punkte zu setzen. Punkte lassen sich verschieben."); else setStatus(""); };
 
 function renderMarkers(){
@@ -488,6 +502,7 @@ function updateRoute(){
   if(routeCoords.length<2){
     src&&src.setData({type:"FeatureCollection",features:[]});
     ["sDist","sUp","sDown","sMax","sGrade","sTime"].forEach(id=>$(id).textContent="–");
+    $("summary").textContent=state.waypoints.length?"Noch einen Punkt setzen":"Keine Route";
     profile={d:[],e:[],seg:[]}; drawProfile(); return;
   }
   const a=analyse(); profile=a;
@@ -505,6 +520,7 @@ function updateRoute(){
     // Gehzeit nach DIN 33466: 4 km/h, 300 Hm/h aufwärts, 500 Hm/h abwärts
     const th=a.len/1000/4, tv=a.up/300+a.down/500; $("sTimeLbl").textContent="Gehzeit"; $("sTime").textContent=fmtH(Math.max(th,tv)+Math.min(th,tv)/2);
   } else { $("sTimeLbl").textContent="Fahrzeit"; $("sTime").textContent=routeMeta.time?fmtH(routeMeta.time/3600):"–"; }
+  $("summary").textContent=`${fmtKm(a.len)} · ↑${fmtM(a.up)}`;
   drawProfile();
 }
 
@@ -638,7 +654,7 @@ $("gpxFile").onchange=async e=>{
 
 // ---------- Start ----------
 let started=false;
-function start(){ if(started) return; started=true;
+function start(){ if(started) return; started=true; setSheet(state.sheetMin);
   applyLayers(); renderMarkers(); route().then(()=>{ if(firstRun && routeCoords.length) setStatus("Beispielroute bei Lana. „Löschen“ und „Punkte setzen“ für eine eigene Tour."); });
   if(state.bike) loadBike();
 }
