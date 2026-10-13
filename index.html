@@ -56,6 +56,9 @@ button{cursor:pointer}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .seg button{border:1px solid var(--line);background:var(--chip);border-radius:8px;padding:8px 6px;font-weight:500}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.zrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.zrow label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.zrow input{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 8px;font-size:15px;color:var(--fg);font-variant-numeric:tabular-nums}
 .chk{display:flex;align-items:center;gap:10px;padding:4px 0}
 .chk input{width:18px;height:18px;accent-color:var(--accent)}
 .legend{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:13px;align-items:center;margin:4px 0 0 28px}
@@ -173,7 +176,11 @@ button{cursor:pointer}
     <label class="chk"><input type="checkbox" id="ovHiking" checked> Wanderwege mit Nummern</label>
     <label class="chk"><input type="checkbox" id="ovMtb"> MTB-Routen</label>
     <label class="chk"><input type="checkbox" id="ovCycling"> Radrouten</label>
-    <label class="chk"><input type="checkbox" id="ovWmSmall"> Wegnummern klein</label>
+    <div class="zrow">
+      <label for="zSmall">Wegnummern klein ab Zoom<input id="zSmall" type="number" inputmode="decimal" min="0" max="20" step="0.5"></label>
+      <label for="zLarge">Wegnummern groß ab Zoom<input id="zLarge" type="number" inputmode="decimal" min="0" max="22" step="0.5"></label>
+    </div>
+    <div class="hint" id="zNow"></div>
     <label class="chk"><input type="checkbox" id="ovSlope"> Route nach Steigung einfärben</label>
     <label class="chk"><input type="checkbox" id="ovHof"> Hofnamen (Südtirol)</label>
     <label class="chk"><input type="checkbox" id="ovFlur"> Flurnamen (Südtirol)</label>
@@ -295,7 +302,7 @@ const saved = load();
 const state = Object.assign({
   base:"topo", hiking:true, mtb:false, cycling:false, hill:false, bike:false,
   terrain:true, exag:1.3, mode:"hiking-mountain", brouter:"https://brouter.de/brouter",
-  waypoints:null, view:null, app:"tour", flur:false, hof:false, wmSmall:true, slopeRoute:false
+  waypoints:null, view:null, app:"tour", flur:false, hof:false, zSmall:11, zLarge:15, slopeRoute:false
 }, saved || {});
 state.fs = Object.assign({flow:800,out:10,pin:2,loss:1,hose:20,skip:8}, state.fs||{});
 if(state.fs.out1==null) state.fs.out1=state.fs.out;
@@ -313,7 +320,7 @@ const slopeColor = g => { const a=Math.abs(g); return a<6?"#3b8f4e":a<12?"#c9b52
 
 // ---------- Karte ----------
 const ROUTE_COLOR="#d6168b";   // Magenta: kommt in Topo-Karte und Wegmarkierungen nicht vor
-const WM_TILE=()=>state.wmSmall?128:256;   // 128 = Wegnummern halb so groß
+// Wegmarkierungen: unter zSmall aus, zwischen zSmall und zLarge klein (128er-Kacheln = halbe Größe), ab zLarge groß
 const TERRAIN_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const style = {
   version:8,
@@ -325,10 +332,13 @@ const style = {
     sat:{type:"raster",tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19,
       attribution:'Luftbild: © Esri, Maxar, Earthstar Geographics'},
     satlabels:{type:"raster",tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19},
-    wmHiking:{type:"raster",tiles:["https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"],tileSize:WM_TILE(),maxzoom:18,
+    wmHiking:{type:"raster",tiles:["https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"],tileSize:256,maxzoom:18,
       attribution:'Wege: © <a href="https://waymarkedtrails.org">Waymarked Trails</a>'},
-    wmMtb:{type:"raster",tiles:["https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png"],tileSize:WM_TILE(),maxzoom:18},
-    wmCycling:{type:"raster",tiles:["https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"],tileSize:WM_TILE(),maxzoom:18},
+    wmMtb:{type:"raster",tiles:["https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png"],tileSize:256,maxzoom:18},
+    wmHikingS:{type:"raster",tiles:["https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"],tileSize:128,maxzoom:18},
+    wmMtbS:{type:"raster",tiles:["https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png"],tileSize:128,maxzoom:18},
+    wmCyclingS:{type:"raster",tiles:["https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"],tileSize:128,maxzoom:18},
+    wmCycling:{type:"raster",tiles:["https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png"],tileSize:256,maxzoom:18},
     dem:{type:"raster-dem",tiles:[TERRAIN_URL],encoding:"terrarium",tileSize:256,maxzoom:15,
       attribution:'Gelände: Mapzen/AWS Terrain Tiles · Daten © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'},
     demHill:{type:"raster-dem",tiles:[TERRAIN_URL],encoding:"terrarium",tileSize:256,maxzoom:15},
@@ -345,9 +355,12 @@ const style = {
     {id:"sat",type:"raster",source:"sat",layout:{visibility:"none"}},
     {id:"satlabels",type:"raster",source:"satlabels",layout:{visibility:"none"}},
     {id:"hill",type:"hillshade",source:"demHill",layout:{visibility:"none"},paint:{"hillshade-exaggeration":0.35,"hillshade-shadow-color":"#26332b"}},
-    {id:"wmCycling",type:"raster",source:"wmCycling",minzoom:11,layout:{visibility:"none"},paint:{"raster-opacity":0.85}},
-    {id:"wmMtb",type:"raster",source:"wmMtb",minzoom:11,layout:{visibility:"none"},paint:{"raster-opacity":0.9}},
-    {id:"wmHiking",type:"raster",source:"wmHiking",minzoom:11,paint:{"raster-opacity":0.9}},
+    {id:"wmCyclingS",type:"raster",source:"wmCyclingS",minzoom:state.zSmall,maxzoom:state.zLarge,layout:{visibility:"none"},paint:{"raster-opacity":0.85}},
+    {id:"wmCycling",type:"raster",source:"wmCycling",minzoom:state.zLarge,layout:{visibility:"none"},paint:{"raster-opacity":0.85}},
+    {id:"wmMtbS",type:"raster",source:"wmMtbS",minzoom:state.zSmall,maxzoom:state.zLarge,layout:{visibility:"none"},paint:{"raster-opacity":0.9}},
+    {id:"wmMtb",type:"raster",source:"wmMtb",minzoom:state.zLarge,layout:{visibility:"none"},paint:{"raster-opacity":0.9}},
+    {id:"wmHikingS",type:"raster",source:"wmHikingS",minzoom:state.zSmall,maxzoom:state.zLarge,paint:{"raster-opacity":0.9}},
+    {id:"wmHiking",type:"raster",source:"wmHiking",minzoom:state.zLarge,paint:{"raster-opacity":0.9}},
     {id:"bike-casing",type:"line",source:"bike",layout:{visibility:"none","line-cap":"round"},paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],13,3,17,7],"line-opacity":0.7}},
     {id:"bike-line",type:"line",source:"bike",filter:["!=",["get","cls"],"no"],layout:{visibility:"none","line-cap":"round"},
       paint:{"line-color":["match",["get","cls"],"easy","#3b8f4e","medium","#c9b52c","hard","#c8312b","#8b968f"],"line-width":["interpolate",["linear"],["zoom"],13,1.8,17,4.5]}},
@@ -382,10 +395,11 @@ function applyLayers(){
   const vis = (id,on)=>map.getLayer(id)&&map.setLayoutProperty(id,"visibility",on?"visible":"none");
   vis("topo",state.base==="topo"); vis("osm",state.base==="osm");
   vis("sat",state.base==="sat"||state.base==="hybrid"); vis("satlabels",state.base==="hybrid");
-  $("ovWmSmall").checked=state.wmSmall; $("ovSlope").checked=state.slopeRoute;
+  $("ovSlope").checked=state.slopeRoute; $("zSmall").value=state.zSmall; $("zLarge").value=state.zLarge;
   vis("flur-label",state.flur); vis("hof-dot",state.hof); vis("hof-label",state.hof);
   $("ovFlur").checked=state.flur; $("ovHof").checked=state.hof; $("namesHint").hidden=!(state.flur||state.hof);
-  vis("wmHiking",state.hiking); vis("wmMtb",state.mtb); vis("wmCycling",state.cycling); vis("hill",state.hill);
+  vis("wmHiking",state.hiking); vis("wmMtb",state.mtb); vis("wmCycling",state.cycling);
+  vis("wmHikingS",state.hiking); vis("wmMtbS",state.mtb); vis("wmCyclingS",state.cycling); vis("hill",state.hill);
   ["bike-casing","bike-line","bike-no"].forEach(l=>vis(l,state.bike));
   document.querySelectorAll("#baseSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.base===state.base));
   $("ovHiking").checked=state.hiking; $("ovMtb").checked=state.mtb; $("ovCycling").checked=state.cycling;
@@ -403,16 +417,19 @@ $("btnLayers").onclick=()=>{ const p=$("layers").hidden; $("layers").hidden=!p; 
 document.querySelectorAll("#baseSeg button").forEach(b=>b.onclick=()=>{state.base=b.dataset.base;applyLayers();});
 [["ovHiking","hiking"],["ovMtb","mtb"],["ovCycling","cycling"],["ovHill","hill"]].forEach(([id,k])=>$(id).onchange=e=>{state[k]=e.target.checked;applyLayers();});
 $("ovSlope").onchange=e=>{state.slopeRoute=e.target.checked;save();updateRoute();};
-$("ovWmSmall").onchange=e=>{state.wmSmall=e.target.checked;save();
-  // Wegmarkierungs-Quellen mit neuer Kachelgröße neu anlegen
-  [["wmCycling","cycling"],["wmMtb","mtb"],["wmHiking","hiking"]].forEach(([id,k])=>{
-    const layer=map.getStyle().layers.find(l=>l.id===id), idx=map.getStyle().layers.findIndex(l=>l.id===id);
-    const before=map.getStyle().layers[idx+1]?.id, src=map.getStyle().sources[id];
-    map.removeLayer(id); map.removeSource(id);
-    map.addSource(id,Object.assign({},src,{tileSize:WM_TILE()})); map.addLayer(layer,before);
+function setZoomRanges(){
+  [["wmHiking"],["wmMtb"],["wmCycling"]].forEach(([id])=>{
+    map.setLayerZoomRange(id+"S",state.zSmall,Math.max(state.zSmall,state.zLarge));
+    map.setLayerZoomRange(id,Math.max(state.zSmall,state.zLarge),24);
   });
-  applyLayers();
-};
+}
+["zSmall","zLarge"].forEach(id=>$(id).addEventListener("change",e=>{
+  const v=parseFloat(String(e.target.value).replace(",","."));
+  if(!isFinite(v)){ e.target.value=state[id]; return; }
+  state[id]=Math.min(22,Math.max(0,v)); save(); setZoomRanges(); applyLayers();
+}));
+const showZoom=()=>{ $("zNow").textContent="Aktuelle Zoomstufe: "+map.getZoom().toLocaleString("de-DE",{maximumFractionDigits:1}); };
+map.on("zoom",showZoom); map.on("load",showZoom);
 $("ovFlur").onchange=e=>{state.flur=e.target.checked;applyLayers();loadNames();};
 $("ovHof").onchange=e=>{state.hof=e.target.checked;applyLayers();loadNames();};
 // Flur- und Hofnamen: Flurnamen Südtirols, Naturmuseum Südtirol (CC BY-NC-ND 4.0); Datei flurnamen.json neben index.html
@@ -697,7 +714,8 @@ const BZ_WCS="https://geoservices9.civis.bz.it/geoserver/wcs";
 const BZ_COV="p_bz-Elevation__DigitalTerrainModel-2.5m";
 const BZ_E0=605000, BZ_N0=5220800, BZ_RES=2.5;              // Mittelpunkt der ersten Rasterzelle
 const BZ_BOX=[604998.75,5119998.75,768201.25,5220801.25];  // Abdeckung des Dienstes
-const bzCache=new Map(); let bzFailed=false;
+const BZ_ENABLED=false;   // Provinzdienst sendet keine CORS-Freigabe; ohne Zwischendienst nicht nutzbar
+const bzCache=new Map(); let bzFailed=false, bzError="";
 // WGS84 → ETRS89 / UTM 32N (EPSG:25832)
 function toUtm32(lon,lat){
   const a=6378137, f=1/298.257222101, e2=f*(2-f), k0=0.9996, ep2=e2/(1-e2);
@@ -715,7 +733,8 @@ async function bzTile(i0,j0,i1,j1){
     const e0=BZ_E0+i0*BZ_RES-1, e1=BZ_E0+i1*BZ_RES+1, n1=BZ_N0-j0*BZ_RES+1, n0=BZ_N0-j1*BZ_RES-1;
     const url=`${BZ_WCS}?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=${BZ_COV}`+
       `&SUBSET=E(${e0},${e1})&SUBSET=N(${n0},${n1})&FORMAT=application/gml%2Bxml`;
-    const r=await fetch(url); if(!r.ok) throw new Error("WCS "+r.status);
+    let r; try{ r=await fetch(url); }catch(e){ throw new Error("blockiert oder nicht erreichbar (Browser-Sperre/Netz)"); }
+    if(!r.ok) throw new Error("Server antwortet mit Fehler "+r.status);
     const txt=await r.text();
     const lo=/<gml:low>\s*(\d+)\s+(\d+)\s*<\/gml:low>/.exec(txt), hi=/<gml:high>\s*(\d+)\s+(\d+)\s*<\/gml:high>/.exec(txt);
     const tl=/<gml:tupleList[^>]*>([\s\S]*?)<\/gml:tupleList>/.exec(txt);
@@ -736,7 +755,7 @@ function bzSample(t,E,N){
 }
 // Höhen für alle Punkte; Abschnitte von höchstens ca. 400 m Kantenlänge, je eine Anfrage
 async function southTyrolHeights(pts){
-  const out=pts.map(()=>null); if(bzFailed && !state.bzRetry) return out;
+  const out=pts.map(()=>null); if(!BZ_ENABLED || bzFailed) return out;
   const utm=pts.map(p=>toUtm32(p.lng,p.lat));
   const inBox=([E,N])=>E>BZ_BOX[0]+10&&E<BZ_BOX[2]-10&&N>BZ_BOX[1]+10&&N<BZ_BOX[3]-10;
   const chunks=[]; let cur=null;
@@ -752,7 +771,7 @@ async function southTyrolHeights(pts){
     const i0=Math.floor((c.b[0]-BZ_E0)/BZ_RES)-2, i1=Math.ceil((c.b[2]-BZ_E0)/BZ_RES)+2;
     const j0=Math.floor((BZ_N0-c.b[3])/BZ_RES)-2, j1=Math.ceil((BZ_N0-c.b[1])/BZ_RES)+2;
     try{ const t=await bzTile(i0,j0,i1,j1); c.idx.forEach(k=>{ out[k]=bzSample(t,utm[k][0],utm[k][1]); }); ok++; }
-    catch(e){ fail++; if(!ok && fail>=2){ bzFailed=true; next=chunks.length; } }
+    catch(e){ fail++; bzError=e.message; if(!ok && fail>=2){ bzFailed=true; next=chunks.length; } }
   } };
   await Promise.all([worker(),worker(),worker(),worker()]);
   return out;
@@ -806,7 +825,7 @@ async function updateFs(){
   const nbz=pts.filter(p=>p.src==="bz").length, share=nbz/pts.length;
   $("fsSrc").textContent = share>0.98 ? "Höhen: Geländemodell Südtirol, 2,5 m Raster (Laserscan, Autonome Provinz Bozen)."
     : share>0 ? `Höhen: ${Math.round(share*100)} % aus dem Südtiroler 2,5-m-Modell, der Rest aus dem weltweiten Modell (ca. 30 m).`
-    : bzFailed ? "Höhen: weltweites Geländemodell (ca. 30 m). Der Südtiroler 2,5-m-Dienst war nicht erreichbar."
+    : bzFailed ? `Höhen: weltweites Geländemodell (ca. 30 m). Südtiroler 2,5-m-Dienst: ${bzError}.`
     : "Höhen: weltweites Geländemodell (ca. 30 m Raster).";
   const warn=[];
   if(plan.tooSteep) warn.push("Die Steigung ist an mindestens einer Stelle so groß, dass der Mindest-Eingangsdruck auch mit einer Pumpe alle 5 m nicht erreicht wird.");
