@@ -6,6 +6,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tourenplaner">
 <title>Tourenplaner 3D</title>
+<script>
+// Zwei Oberflächen, ein Programm: …/?feuerwehr öffnet die Förderstrecke, ohne Zusatz den Tourenplaner
+(function(){
+  var fs=/[?&#]feuerwehr\b/i.test(location.search+location.hash);
+  window.TP_APP=fs?"fs":"tour";
+  document.documentElement.classList.add(fs?"app-fs":"app-tour");
+  if(fs){ document.title="Förderstrecke";
+    var m=document.querySelector('meta[name="apple-mobile-web-app-title"]'); if(m) m.setAttribute("content","Förderstrecke"); }
+})();
+</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
@@ -26,6 +36,10 @@
 :root[data-theme="dark"]{
   --bg:#121815; --panel:#18211ced; --panel-solid:#18211c; --fg:#e4ebe6; --muted:#9aaba0; --line:#2c3a31;
   --accent:#5fb487; --accent-fg:#0e1611; --chip:#223028; color-scheme:dark}
+/* Förderstrecke: Feuerwehr-Rot als Akzent, damit die beiden Oberflächen sofort unterscheidbar sind */
+:root.app-fs{--accent:#a5281f;--accent-fg:#ffffff}
+@media (prefers-color-scheme:dark){:root.app-fs:not([data-theme="light"]){--accent:#e2695e;--accent-fg:#1a0e0c}}
+.app-fs .only-tour,.app-tour .only-fs{display:none!important}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 var(--font-ui);-webkit-tap-highlight-color:transparent}
@@ -74,7 +88,7 @@ button{cursor:pointer}
 #sheet{max-height:62%;overflow-y:auto}
 #detail{margin-top:8px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-#mode{height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);padding:0 8px;font-weight:500}
+#mode{flex:1;min-width:0;max-width:460px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);padding:0 8px;font-weight:500}
 .btn{height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);padding:0 12px;font-weight:500;white-space:nowrap}
 .btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 .btn[aria-pressed="true"]{background:var(--route);color:#fff;border-color:var(--route)}
@@ -90,13 +104,16 @@ button{cursor:pointer}
 #profile svg{display:block;width:100%;height:100%}
 #profile text{fill:var(--muted);font:11px var(--font-label);font-variant-numeric:tabular-nums}
 #tip{position:absolute;top:0;pointer-events:none;background:var(--panel-solid);border:1px solid var(--line);border-radius:6px;padding:2px 6px;font:12px var(--font-label);white-space:nowrap;font-variant-numeric:tabular-nums}
-#appSeg{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1;min-width:0;max-width:420px}
-#appSeg button{border:1px solid var(--line);background:var(--chip);border-radius:8px;height:36px;font-weight:500;white-space:nowrap}
-#appSeg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-#fsParams{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px 12px;margin-top:8px}
-#fsParams .fsgrp{grid-column:1/-1;font:600 13px var(--font-label);text-transform:uppercase;letter-spacing:.05em;color:var(--fg);margin-top:6px;border-bottom:1px solid var(--line);padding-bottom:2px}
-#fsParams label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
-#fsParams input{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 8px;font-variant-numeric:tabular-nums;font-size:15px;color:var(--fg)}
+#fsParams,#ebParams{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px 12px;margin-top:8px}
+#fsParams .fsgrp,#ebParams .fsgrp{grid-column:1/-1;font:600 13px var(--font-label);text-transform:uppercase;letter-spacing:.05em;color:var(--fg);margin-top:6px;border-bottom:1px solid var(--line);padding-bottom:2px}
+#fsParams label,#ebParams label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
+#fsParams input,#ebParams input{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 8px;font-variant-numeric:tabular-nums;font-size:15px;color:var(--fg)}
+#ebModes{display:grid;grid-template-columns:1fr 1fr 90px;gap:6px 10px;margin-top:8px}
+#ebModes label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px;min-width:0}
+#ebModes select,#ebModes input{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--chip);padding:0 6px;font-size:15px;color:var(--fg);min-width:0;font-variant-numeric:tabular-nums}
+#ebInfo{font-size:14px;margin-top:8px;font-variant-numeric:tabular-nums}
+#ebInfo b{font-family:var(--font-label);font-size:17px}
+#ebInfo.warn{color:var(--route)}
 #fsList{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
 #fsList li{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
 #fsList li b{font-family:var(--font-label);font-size:16px;grid-row:span 2;align-self:center;min-width:2.4em}
@@ -127,7 +144,6 @@ button{cursor:pointer}
 .pop dd{margin:0}
 @media (max-width:600px){
   #sheet{padding-left:12px;padding-right:12px}
-  #appSeg{flex-basis:100%;max-width:none}
   #mode{flex:1}
   #stats,#stats2{grid-template-columns:repeat(3,1fr)!important;margin:6px 0 2px!important}
   #stats b,#stats2 b{font-size:18px}
@@ -174,19 +190,19 @@ button{cursor:pointer}
   <div>
     <div class="label">Ebenen</div>
     <label class="chk"><input type="checkbox" id="ovHiking" checked> Wanderwege mit Nummern</label>
-    <label class="chk"><input type="checkbox" id="ovMtb"> MTB-Routen</label>
-    <label class="chk"><input type="checkbox" id="ovCycling"> Radrouten</label>
+    <label class="chk only-tour"><input type="checkbox" id="ovMtb"> MTB-Routen</label>
+    <label class="chk only-tour"><input type="checkbox" id="ovCycling"> Radrouten</label>
     <div class="zrow">
       <label for="zSmall">Wegnummern klein ab Zoom<input id="zSmall" type="number" inputmode="decimal" min="0" max="20" step="0.5"></label>
       <label for="zLarge">Wegnummern groß ab Zoom<input id="zLarge" type="number" inputmode="decimal" min="0" max="22" step="0.5"></label>
     </div>
     <div class="hint" id="zNow"></div>
-    <label class="chk"><input type="checkbox" id="ovSlope"> Route nach Steigung einfärben</label>
+    <label class="chk only-tour"><input type="checkbox" id="ovSlope"> Route nach Steigung einfärben</label>
     <label class="chk"><input type="checkbox" id="ovHof"> Hofnamen (Südtirol)</label>
     <label class="chk"><input type="checkbox" id="ovFlur"> Flurnamen (Südtirol)</label>
     <div class="hint" id="namesHint" hidden></div>
     <label class="chk"><input type="checkbox" id="ovHill"> Schummerung</label>
-    <label class="chk"><input type="checkbox" id="ovBike"> Fahrradtauglichkeit der Wege</label>
+    <label class="chk only-tour"><input type="checkbox" id="ovBike"> Fahrradtauglichkeit der Wege</label>
     <div class="legend" id="bikeLegend" hidden>
       <span class="sw" style="background:var(--g1)"></span><span>leicht (Forstweg, S0–S1)</span>
       <span class="sw" style="background:var(--g2)"></span><span>mittel (S2)</span>
@@ -205,6 +221,8 @@ button{cursor:pointer}
     <input type="url" id="brouterUrl" aria-label="BRouter-Server" style="margin-top:6px">
     <p class="hint">Standard ist der öffentliche Server brouter.de. Ein eigener BRouter-Server lässt sich hier eintragen.</p>
   </details>
+  <a class="hint only-tour" href="./?feuerwehr">Zur Förderstrecke (Feuerwehr) →</a>
+  <a class="hint only-fs" href="./">Zum Tourenplaner →</a>
 </div>
 
 <section id="sheet" aria-label="Route">
@@ -216,16 +234,7 @@ button{cursor:pointer}
   <div id="status" role="status"></div>
   <div id="detail">
   <div class="row">
-    <div id="appSeg" role="group" aria-label="Modus">
-      <button data-app="tour" aria-pressed="true">Tour</button>
-      <button data-app="fs" aria-pressed="false">Förderstrecke</button>
-    </div>
-    <select id="mode" aria-label="Linienführung">
-      <option value="hiking-mountain">Wandern / Bergwandern</option>
-      <option value="mtb-zossebart">Mountainbike</option>
-      <option value="trekking">Trekkingrad</option>
-      <option value="straight">Gerade Linie (Luftlinie)</option>
-    </select>
+    <select id="mode" aria-label="Linienführung"></select>
   </div>
     <div id="fsStats" hidden>
       <div id="stats2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:4px 12px;margin:10px 0 6px">
@@ -258,6 +267,30 @@ button{cursor:pointer}
       <span><i class="sw" style="background:var(--g3)"></i>12–18 %</span>
       <span><i class="sw" style="background:var(--g4)"></i>18–25 %</span>
       <span><i class="sw" style="background:var(--g5)"></i>über 25 %</span>
+    </div>
+    <div id="ebBox" hidden>
+      <div id="ebModes">
+        <label for="ebMode">Fahrmodus<select id="ebMode"></select></label>
+        <label for="ebSteep">Steile Stücke mit<select id="ebSteep"></select></label>
+        <label for="ebSteepFrom">ab Steigung (%)<input id="ebSteepFrom" type="number" inputmode="decimal" min="0" max="60" step="1"></label>
+      </div>
+      <div id="ebInfo"></div>
+      <details>
+        <summary class="label" style="cursor:pointer;margin-top:8px">Annahmen E-MTB</summary>
+        <div id="ebParams">
+          <div class="fsgrp">Reichweite je volle Akkuladung (Höhenmeter)</div>
+          <label for="ebR_eco">Eco plus<input id="ebR_eco" type="number" inputmode="decimal" min="100" step="50"></label>
+          <label for="ebR_auto">Auto<input id="ebR_auto" type="number" inputmode="decimal" min="100" step="50"></label>
+          <label for="ebR_trail">Trail<input id="ebR_trail" type="number" inputmode="decimal" min="100" step="50"></label>
+          <label for="ebR_turbo">Turbo<input id="ebR_turbo" type="number" inputmode="decimal" min="100" step="50"></label>
+          <div class="fsgrp">Fahrer und Rad</div>
+          <label for="ebMass">Gesamtgewicht (kg)<input id="ebMass" type="number" inputmode="decimal" min="40" step="1"></label>
+          <label for="ebRider">Eigene Trittleistung (W)<input id="ebRider" type="number" inputmode="decimal" min="0" step="10"></label>
+          <label for="ebVdown">Abfahrt höchstens (km/h)<input id="ebVdown" type="number" inputmode="decimal" min="5" step="1"></label>
+          <label for="ebBatt">Akku (Wh)<input id="ebBatt" type="number" inputmode="decimal" min="100" step="50"></label>
+        </div>
+        <p class="fsnote">Akku: Jeder Höhenmeter bergauf verbraucht 1/Reichweite des gerade genutzten Modus; Eco plus und Auto sind deine Erfahrungswerte, Trail und Turbo geschätzt. Fahrzeit: Fahrphysik je 100-m-Abschnitt mit Unterstützung Eco plus 100 %, Auto 200 %, Trail 300 %, Turbo 450 % der Trittleistung (Motor höchstens 750 W, bis 25 km/h; Ebene höchstens 22 km/h). Bergab wird das Tempo mit dem Gefälle reduziert, unter 4 km/h gilt als Schieben. Pausen sind nicht enthalten.</p>
+      </details>
     </div>
     <div id="fsBox" hidden>
       <details>
@@ -295,25 +328,44 @@ button{cursor:pointer}
 <script>
 "use strict";
 // ---------- Einstellungen & Speicher ----------
-const STORE = "tourenplaner3d.v1";
+const APP = window.TP_APP||"tour";
+// Getrennte Speicher: Touren und Förderstrecken überschreiben sich nicht gegenseitig
+const STORE = APP==="fs" ? "tourenplaner3d.fs" : "tourenplaner3d.v1";
 function load(){ try { return JSON.parse(localStorage.getItem(STORE)) || null; } catch(e){ return null; } }
 function save(){ try { localStorage.setItem(STORE, JSON.stringify(state)); } catch(e){} }
 const saved = load();
+// Förderstrecke beim ersten Start: Kartenausschnitt und Kartenwahl vom Tourenplaner übernehmen
+const tourSaved = (APP==="fs" && !saved) ? (()=>{ try{ return JSON.parse(localStorage.getItem("tourenplaner3d.v1"))||{}; }catch(e){ return {}; } })() : {};
 const state = Object.assign({
   base:"topo", hiking:true, mtb:false, cycling:false, hill:false, bike:false,
-  terrain:true, exag:1.3, mode:"hiking-mountain", brouter:"https://brouter.de/brouter",
-  waypoints:null, view:null, app:"tour", flur:false, hof:false, zSmall:11, zLarge:15, slopeRoute:false
-}, saved || {});
+  terrain:true, exag:1.3, mode:APP==="fs"?"shortest":"hiking-mountain", brouter:"https://brouter.de/brouter",
+  waypoints:null, view:null, flur:false, hof:false, zSmall:11, zLarge:15, slopeRoute:false
+}, APP==="fs" ? {view:tourSaved.view||null, base:tourSaved.base||"topo", brouter:tourSaved.brouter||"https://brouter.de/brouter"} : {}, saved || {});
+state.app = APP;
+if(APP==="fs"){ state.bike=false; state.mtb=false; state.cycling=false; state.slopeRoute=false; }
 state.fs = Object.assign({flow:800,out:10,pin:2,loss:1,hose:20,skip:8}, state.fs||{});
 if(state.fs.out1==null) state.fs.out1=state.fs.out;
+// E-MTB-Annahmen (Fahrzeit und Akkuverbrauch); Reichweiten Eco plus/Auto = Erfahrungswerte Amflow PR, 800 Wh
+state.eb = Object.assign({mass:105,rider:140,vdown:22,batt:800,mode:"eco",steep:"trail",steepFrom:18}, state.eb||{});
+state.eb.reach = Object.assign({eco:1800,auto:1500,trail:1200,turbo:900}, state.eb.reach||{});
+["assist","motor"].forEach(k=>delete state.eb[k]);
+// Profil „mtb-zossebart“ gibt es auf brouter.de nicht (Fehler 500) → Standardprofil „mtb“
+if(state.mode==="mtb-zossebart") state.mode="mtb";
 const firstRun = !saved;
 if(state.sheetMin==null) state.sheetMin = window.innerWidth < 700;
 if(!state.waypoints){
-  // Beispielroute bei Lana (beim ersten Start; „Löschen“ entfernt sie)
-  state.waypoints = [[11.1565,46.6118],[11.1352,46.6028],[11.1183,46.5936]];
+  // Tourenplaner: Beispielroute bei Lana (beim ersten Start; „Löschen“ entfernt sie). Förderstrecke: leer
+  state.waypoints = APP==="fs" ? [] : [[11.1565,46.6118],[11.1352,46.6028],[11.1183,46.5936]];
 }
+// Linienführungen je Oberfläche
+const MODES = APP==="fs"
+  ? [["straight","Gerade Linie (quer durchs Gelände)"],["shortest","Entlang Wegen und Straßen"],["hiking-mountain","Entlang Wanderwegen"]]
+  : [["hiking-mountain","Wandern / Bergwandern"],["mtb","Mountainbike"],["emtb","E-Mountainbike"],["trekking","Trekkingrad"],["straight","Gerade Linie (Luftlinie)"]];
+if(!MODES.some(m=>m[0]===state.mode)) state.mode=MODES[0][0];
 
 const $ = id => document.getElementById(id);
+MODES.forEach(([v,t])=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; $("mode").append(o); });
+if(APP==="fs"){ $("search").placeholder="Ort, Einsatzstelle suchen"; $("btnGpx").textContent="GPX speichern"; }
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const SLOPE_CLASSES = [6,12,18,25];
 const slopeColor = g => { const a=Math.abs(g); return a<6?"#3b8f4e":a<12?"#c9b52c":a<18?"#e07b24":a<25?"#c8312b":"#6b1d4a"; };
@@ -463,20 +515,35 @@ function setSheet(min){ state.sheetMin=min; $("sheet").classList.toggle("min",mi
 $("grab").onclick=()=>setSheet(!state.sheetMin);
 function setApp(app){
   state.app=app; save();
-  document.querySelectorAll("#appSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.app===app));
   const fs=app==="fs";
   $("fsStats").hidden=!fs; $("fsBox").hidden=!fs; $("fsKey").hidden=!fs;
   $("stats").hidden=fs; $("slopeKey").hidden=fs;
   if(!fs){ $("fsWarn").textContent=""; }
   renderMarkers(); updateRoute();
 }
-document.querySelectorAll("#appSeg button").forEach(b=>b.onclick=()=>setApp(b.dataset.app));
 [["fsFlow","flow"],["fsOut1","out1"],["fsOut","out"],["fsIn","pin"],["fsLoss","loss"],["fsHoseLen","hose"],["fsSkip","skip"]].forEach(([id,k])=>{
   $(id).value=state.fs[k];
   $(id).addEventListener("change",e=>{ const v=parseFloat(String(e.target.value).replace(",",".")); if(isFinite(v)&&v>=0){ state.fs[k]=v; save(); updateRoute(); } else e.target.value=state.fs[k]; });
 });
+const EB_MODES={eco:"Eco plus",auto:"Auto",trail:"Trail",turbo:"Turbo"};
+Object.entries(EB_MODES).forEach(([k,t])=>{ const o=document.createElement("option"); o.value=k; o.textContent=t; $("ebMode").append(o); });
+[["same","wie Fahrmodus"],["trail","Trail"],["turbo","Turbo"]].forEach(([k,t])=>{ const o=document.createElement("option"); o.value=k; o.textContent=t; $("ebSteep").append(o); });
+$("ebMode").value=state.eb.mode; $("ebSteep").value=state.eb.steep;
+$("ebMode").onchange=e=>{ state.eb.mode=e.target.value; save(); updateRoute(); };
+$("ebSteep").onchange=e=>{ state.eb.steep=e.target.value; $("ebSteepFrom").disabled=e.target.value==="same"; save(); updateRoute(); };
+$("ebSteepFrom").disabled=state.eb.steep==="same";
+const numInput=(id,get,set)=>{ $(id).value=get();
+  $(id).addEventListener("change",e=>{ const v=parseFloat(String(e.target.value).replace(",",".")); if(isFinite(v)&&v>=0){ set(v); save(); updateRoute(); } else e.target.value=get(); }); };
+[["ebMass","mass"],["ebRider","rider"],["ebVdown","vdown"],["ebBatt","batt"],["ebSteepFrom","steepFrom"]].forEach(([id,k])=>numInput(id,()=>state.eb[k],v=>state.eb[k]=v));
+Object.keys(EB_MODES).forEach(k=>numInput("ebR_"+k,()=>state.eb.reach[k],v=>state.eb.reach[k]=Math.max(100,v)));
 $("btnLayersClose").onclick=()=>{ $("layers").hidden=true; $("btnLayers").setAttribute("aria-pressed",false); };
-$("mode").onchange=e=>{state.mode=e.target.value;save();route();};
+$("mode").onchange=e=>{
+  const prev=routingProfile(state.mode); state.mode=e.target.value; save();
+  // E-MTB nutzt dieselbe Linienführung wie MTB: dann nur neu auswerten, nicht neu routen
+  if(prev===routingProfile(state.mode) && routeCoords.length) updateRoute(); else route();
+};
+// Linienführung auf dem Routing-Server (E-MTB fährt dieselben Wege wie MTB)
+function routingProfile(m){ return m==="emtb" ? "mtb" : m; }
 
 let meMarker=null;
 $("btnLocate").onclick=()=>{
@@ -610,9 +677,9 @@ async function route(){
       coords=coords.map((c,i)=>[c[0],c[1],eles[i]]);
     } else {
       const ll=wp.map(p=>p[0].toFixed(6)+","+p[1].toFixed(6)).join("|");
-      const url=`${state.brouter}?lonlats=${ll}&profile=${encodeURIComponent(state.mode)}&alternativeidx=0&format=geojson`;
+      const url=`${state.brouter}?lonlats=${ll}&profile=${encodeURIComponent(routingProfile(state.mode))}&alternativeidx=0&format=geojson`;
       const r=await fetch(url); const txt=await r.text();
-      if(!r.ok || txt.trim()[0]!=="{") throw new Error(txt.slice(0,160)||("Server antwortet mit "+r.status));
+      if(!r.ok || txt.trim()[0]!=="{") throw new Error((txt.trim().slice(0,160))||("Server antwortet mit "+r.status));
       const gj=JSON.parse(txt); const f=gj.features[0];
       coords=f.geometry.coordinates; meta.time=+f.properties["total-time"]||null;
       if(coords.some(c=>c[2]==null)){ const e=await Promise.all(coords.map(c=>c[2]==null?elevationAt(c[0],c[1]):c[2])); coords=coords.map((c,i)=>[c[0],c[1],e[i]]); }
@@ -624,7 +691,7 @@ async function route(){
     let msg=String(err.message||err);
     if(/Failed to fetch|NetworkError|Load failed/i.test(msg)) msg="Routing-Server nicht erreichbar. Internetverbindung prüfen oder „Gerade Linie“ wählen.";
     else if(/profile/i.test(msg)) msg="Dieses Profil kennt der Routing-Server nicht: "+msg;
-    else if(/not.*(found|mapped)|position not mapped/i.test(msg)) msg="Ein Punkt liegt zu weit von einem Weg entfernt. Punkt näher an einen Weg setzen.";
+    else if(/not.*(found|mapped)|position not mapped|no track found/i.test(msg)) msg="Keine Route gefunden. Liegt ein Punkt zu weit von einem Weg entfernt? Punkt näher an einen Weg setzen.";
     setStatus(msg,true);
   }
 }
@@ -651,13 +718,53 @@ const fmtKm=m=>(m/1000).toLocaleString("de-DE",{minimumFractionDigits:1,maximumF
 const fmtM=m=>Math.round(m).toLocaleString("de-DE")+" m";
 const fmtH=h=>{ const t=Math.round(h*60); return Math.floor(t/60)+":"+String(t%60).padStart(2,"0")+" h"; };
 
+// ---------- E-MTB: Fahrzeit und Akkuverbrauch ----------
+// Leistungsgleichung je Abschnitt: P = v·(m·g·(Crr·cosθ + sinθ) + ½·ρ·CdA·v²)
+const EB={g:9.81, crr:0.03, rho:1.2, cda:0.55, vAssist:25/3.6, vFlatMax:22/3.6, vPush:4/3.6, eta:0.78};
+function ebPower(v,s,c,m){ return v*(m*EB.g*(EB.crr*c+s)+0.5*EB.rho*EB.cda*v*v); }
+function ebSpeed(P,s,c,m){ // Geschwindigkeit, bei der die Leistung P gerade reicht (Bisektion)
+  let lo=0, hi=30; if(ebPower(hi,s,c,m)<P) return hi;
+  for(let k=0;k<50;k++){ const mid=(lo+hi)/2; if(ebPower(mid,s,c,m)<P) lo=mid; else hi=mid; }
+  return lo;
+}
+const EB_ASSIST={eco:1.0,auto:2.0,trail:3.0,turbo:4.5}, EB_MOTOR_MAX=750;
+function emtbCalc(a){
+  const p=state.eb, m=Math.max(40,p.mass), Pr=Math.max(0,p.rider);
+  let t=0, wh=0, whSteep=0, tPush=0, hmSteep=0;
+  for(const sg of a.seg){
+    const dd=a.d[sg.i1]-a.d[sg.i0]; if(dd<=0) continue;
+    const dz=a.e[sg.i1]-a.e[sg.i0];
+    const steep=p.steep!=="same" && sg.g>=p.steepFrom;
+    const mode=steep ? p.steep : p.mode;
+    const Pm=Math.min(EB_MOTOR_MAX, Pr*EB_ASSIST[mode]);
+    const gr=sg.g/100, th=Math.atan(gr), s=Math.sin(th), c=Math.cos(th);
+    let v;
+    if(gr>-0.02){
+      v=ebSpeed(Pr+Pm,s,c,m);
+      if(v>EB.vAssist) v=Math.max(ebSpeed(Pr,s,c,m),EB.vAssist);   // über 25 km/h nur Muskelkraft
+      v=Math.min(v,EB.vFlatMax);
+    } else {
+      // bergab: Tempo durch Fahrtechnik begrenzt, ab 8 % Gefälle linear weniger, bei 25 % noch 45 %
+      const ag=-gr, f=ag<=0.08?1:Math.max(0.45,1-(ag-0.08)/0.17*0.55);
+      v=Math.min(ebSpeed(Pr,s,c,m), p.vdown/3.6*f);
+    }
+    if(v<EB.vPush){ v=EB.vPush; tPush+=dd/v; }
+    t+=dd/v;
+    // Akku nach Erfahrungswert: Höhenmeter bergauf / Reichweite des genutzten Modus
+    if(dz>0){ const w=dz/Math.max(100,p.reach[mode])*p.batt; wh+=w; if(steep){ whSteep+=w; hmSteep+=dz; } }
+  }
+  return {h:t/3600, wh, whSteep, hmSteep, pct:p.batt>0?wh/p.batt*100:null, pushH:tPush/3600};
+}
+
 function updateRoute(){
   const src=map.getSource("route");
+  const isEb=state.mode==="emtb" && state.app!=="fs";
+  $("ebBox").hidden=!isEb;
   if(routeCoords.length<2){
     src&&src.setData({type:"FeatureCollection",features:[]});
     ["sDist","sUp","sDown","sMax","sGrade","sTime"].forEach(id=>$(id).textContent="–");
-    $("summary").textContent=state.waypoints.length?"Noch einen Punkt setzen":"Keine Route";
-    profile={d:[],e:[],seg:[]}; fsResult=null; clearPumps();
+    $("summary").textContent=state.waypoints.length?"Noch einen Punkt setzen":(APP==="fs"?"Keine Leitung":"Keine Route");
+    profile={d:[],e:[],seg:[]}; fsResult=null; clearPumps(); $("ebInfo").textContent="";
     ["fLen","fDh","fPumps","fBoost","fEnd","fHose"].forEach(id=>$(id).textContent="–"); $("fsList").innerHTML=""; $("fsWarn").textContent="";
     drawProfile(); return;
   }
@@ -675,11 +782,27 @@ function updateRoute(){
   }
   $("sDist").textContent=fmtKm(a.len); $("sUp").textContent=fmtM(a.up); $("sDown").textContent=fmtM(a.down);
   $("sMax").textContent=fmtM(a.max); $("sGrade").textContent=Math.round(a.maxG)+" %";
+  let summary=`${fmtKm(a.len)} · ↑${fmtM(a.up)}`;
   if(state.mode==="hiking-mountain"||state.mode==="straight"){
     // Gehzeit nach DIN 33466: 4 km/h, 300 Hm/h aufwärts, 500 Hm/h abwärts
     const th=a.len/1000/4, tv=a.up/300+a.down/500; $("sTimeLbl").textContent="Gehzeit"; $("sTime").textContent=fmtH(Math.max(th,tv)+Math.min(th,tv)/2);
+  } else if(isEb){
+    const r=emtbCalc(a);
+    $("sTimeLbl").textContent="Fahrzeit E-MTB"; $("sTime").textContent=fmtH(r.h);
+    const pctTxt=r.pct!=null?Math.round(r.pct)+" %":"–";
+    summary+=` · ${fmtH(r.h)} · Akku ${pctTxt}`;
+    const info=$("ebInfo"); info.innerHTML="";
+    const b1=document.createElement("b"); b1.textContent=`Akku ca. ${pctTxt}`;
+    info.append(b1, document.createTextNode(` (${Math.round(r.wh).toLocaleString("de-DE")} von ${Math.round(state.eb.batt).toLocaleString("de-DE")} Wh)`));
+    const extra=[];
+    if(r.hmSteep>=5) extra.push(`davon ${Math.round(r.whSteep/state.eb.batt*100)} % für ${fmtM(r.hmSteep)} steil in ${EB_MODES[state.eb.steep]}.`);
+    if(r.pct!=null && r.pct>100) extra.push("Der Akku reicht für diese Tour voraussichtlich nicht.");
+    else if(r.pct!=null && r.pct>80) extra.push("Knapp: wenig Reserve.");
+    if(r.pushH*60>=1) extra.push(`Ca. ${Math.round(r.pushH*60)} min Schieben (sehr steil).`);
+    if(extra.length) info.append(document.createTextNode(" · "+extra.join(" ")));
+    info.className=r.pct!=null&&r.pct>100?"warn":"";
   } else { $("sTimeLbl").textContent="Fahrzeit"; $("sTime").textContent=routeMeta.time?fmtH(routeMeta.time/3600):"–"; }
-  $("summary").textContent=`${fmtKm(a.len)} · ↑${fmtM(a.up)}`;
+  $("summary").textContent=summary;
   drawProfile();
 }
 
@@ -1022,14 +1145,14 @@ map.on("moveend",()=>{
 const esc=s=>String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 $("btnGpx").onclick=()=>{
   if(routeCoords.length<2){ setStatus("Es gibt noch keine Route zum Speichern.",true); return; }
-  const name="Tour "+new Date().toLocaleDateString("de-DE");
+  const name=(APP==="fs"?"Förderstrecke ":"Tour ")+new Date().toLocaleDateString("de-DE");
   const pts=routeCoords.map(c=>`<trkpt lat="${c[1].toFixed(6)}" lon="${c[0].toFixed(6)}">${c[2]!=null?`<ele>${c[2].toFixed(1)}</ele>`:""}</trkpt>`).join("\n");
   const wpts=(state.app==="fs"&&fsResult)?fsResult.pumps.map((pu,k)=>{ const p=fsResult.pts[pu.i];
     const role=pu.kind==="start"?"Wasserentnahme":pu.kind==="end"?"Löschangriff":"Verstärkerpumpe";
     return `<wpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><ele>${p.h.toFixed(1)}</ele><name>P${k+1} ${role}</name>${pu.pin!=null?`<desc>Eingangsdruck ${pu.pin.toFixed(1)} bar</desc>`:""}</wpt>\n`; }).join("")+(fsResult.endDirect?(()=>{const p=fsResult.pts[fsResult.endDirect.i];return `<wpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><ele>${p.h.toFixed(1)}</ele><name>Ende Löschangriff direkt</name><desc>Druck ${fsResult.endDirect.pin.toFixed(1)} bar</desc></wpt>\n`;})():""):"";
   const gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Tourenplaner 3D" xmlns="http://www.topografix.com/GPX/1/1">\n<metadata><name>${esc(name)}</name></metadata>\n${wpts}<trk><name>${esc(name)}</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>`;
   const url=URL.createObjectURL(new Blob([gpx],{type:"application/gpx+xml"}));
-  const a=document.createElement("a"); a.href=url; a.download="tour-"+new Date().toISOString().slice(0,10)+".gpx"; document.body.append(a); a.click(); a.remove();
+  const a=document.createElement("a"); a.href=url; a.download=(APP==="fs"?"foerderstrecke-":"tour-")+new Date().toISOString().slice(0,10)+".gpx"; document.body.append(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),2000);
 };
 $("btnImport").onclick=()=>$("gpxFile").click();
@@ -1051,7 +1174,10 @@ $("gpxFile").onchange=async e=>{
 // ---------- Start ----------
 let started=false;
 function start(){ if(started) return; started=true; setSheet(state.sheetMin); setApp(state.app);
-  applyLayers(); renderMarkers(); route().then(()=>{ if(firstRun && routeCoords.length) setStatus("Beispielroute bei Lana. „Löschen“ und „Punkte setzen“ für eine eigene Tour."); });
+  applyLayers(); renderMarkers(); route().then(()=>{
+    if(APP==="tour" && firstRun && routeCoords.length) setStatus("Beispielroute bei Lana. „Löschen“ und „Punkte setzen“ für eine eigene Tour.");
+    if(APP==="fs" && !state.waypoints.length) setStatus("„Punkte setzen“: zuerst die Wasserentnahme, dann den Leitungsverlauf bis zum Löschangriff.");
+  });
   if(state.bike) loadBike();
   loadNames();
 }
