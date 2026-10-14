@@ -1384,7 +1384,7 @@ async function findWater(){
     const p=c.f.properties, hoses=Math.ceil(c.len/cfg.hose);
     const li=document.createElement("li"); const b=document.createElement("b"); b.textContent=k+1; b.style.background=CAND_COLORS[k];
     const t1=document.createElement("span"); t1.textContent=`${waterTitle(p)}${p.ref?" "+p.ref:""}${p.name&&p.name!==waterTitle(p)?" – "+p.name:""} · ${fmtKm(c.len)} · ${c.dh>=0?"+":"−"}${fmtM(Math.abs(c.dh))} Höhe`;
-    const t2=document.createElement("small"); t2.textContent=`${c.pumps} Pumpen${c.plan.endDirect?" (Löschangriff direkt)":""} · ${c.boost} Verstärker · ${hoses} B-Schläuche · Luftlinie ${fmtM(c.air)}`;
+    const t2=document.createElement("small"); t2.textContent=`${c.pumps} Pumpe${c.pumps===1?"":"n"}${c.plan.endDirect?" (Löschangriff direkt)":""} · ${c.boost} Verstärker · ${hoses} B-Schläuche · Luftlinie ${fmtM(c.air)}`;
     li.append(b,t1,t2); li.title="Antippen, um diese Leitung zu übernehmen"; li.onclick=()=>adoptCand(c);
     list.append(li);
     const el=document.createElement("div"); el.className="cbadge"; el.style.background=CAND_COLORS[k]; el.textContent=k+1;
