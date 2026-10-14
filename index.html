@@ -93,6 +93,7 @@ button{cursor:pointer}
 .btn{height:36px;border-radius:8px;border:1px solid var(--line);background:var(--chip);padding:0 12px;font-weight:500;white-space:nowrap}
 .btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 .btn[aria-pressed="true"]{background:var(--route);color:#fff;border-color:var(--route)}
+.btn.tog[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 .btn:disabled{opacity:.45;cursor:default}
 #stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:4px 12px;margin:10px 0 6px}
 #stats div{display:flex;flex-direction:column}
@@ -265,6 +266,7 @@ button{cursor:pointer}
   <div class="row" id="bar">
     <button class="btn" id="btnPlan" aria-pressed="false">Punkte setzen</button>
     <button class="btn" id="btnBarUndo" hidden title="Letzten Schritt rückgängig" aria-label="Letzten Schritt rückgängig">↶</button>
+    <button class="btn tog" id="btnStraight" hidden aria-pressed="false" title="Nächste Abschnitte gerade verbinden statt entlang Wegen">Gerade</button>
     <span id="summary" aria-live="polite">Keine Route</span>
     <button class="btn" id="grab" aria-expanded="true" aria-label="Routendetails ein- oder ausblenden"><span id="grabIcon">▾</span> Details</button>
   </div>
@@ -444,7 +446,8 @@ const style = {
     namesHof:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
     water:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
     cands:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
-    route:{type:"geojson",data:{type:"FeatureCollection",features:[]},lineMetrics:true}
+    route:{type:"geojson",data:{type:"FeatureCollection",features:[]},lineMetrics:true},
+    routeStraight:{type:"geojson",data:{type:"FeatureCollection",features:[]}}
   },
   layers:[
     {id:"bg",type:"background",paint:{"background-color":"#dfe6df"}},
@@ -475,6 +478,7 @@ const style = {
     {id:"route-outline",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#14101a","line-opacity":0.6,"line-width":["interpolate",["linear"],["zoom"],10,9,16,14]}},
     {id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],10,7,16,11]}},
     {id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":ROUTE_COLOR,"line-width":["interpolate",["linear"],["zoom"],10,4,16,7]}},
+    {id:"route-straight",type:"line",source:"routeStraight",paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],10,1.5,16,2.5],"line-dasharray":[2,2]}},
     // Vorschläge für Wasserentnahme (bis zu drei Leitungen, gestrichelt in ihrer Farbe)
     {id:"cand-casing",type:"line",source:"cands",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":7,"line-opacity":0.9}},
     {id:"cand-line",type:"line",source:"cands",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","col"],"line-width":4,"line-dasharray":[2,1.2]}},
@@ -647,14 +651,21 @@ function setStatus(t,err){ const s=$("status"); s.textContent=t||""; s.className
 let planning=false;
 let markers=[];
 const undoStack=[];
-function pushHistory(){ undoStack.push(JSON.stringify(state.waypoints)); if(undoStack.length>50) undoStack.shift(); }
+function pushHistory(){ syncSeg(); undoStack.push(JSON.stringify({w:state.waypoints,s:state.segModes})); if(undoStack.length>50) undoStack.shift(); }
+// Linienführung je Abschnitt: null = Hauptauswahl, "straight" = gerade Linie
+function syncSeg(){ if(!Array.isArray(state.segModes)) state.segModes=[]; const n=Math.max(0,state.waypoints.length-1);
+  state.segModes=state.segModes.slice(0,n); while(state.segModes.length<n) state.segModes.push(null); }
+const wpLabel=i=>i===0?"A":(i===state.waypoints.length-1?"Z":String(i));
+let straightNext=false;   // beim Punktesetzen: neue Abschnitte gerade verbinden
 
 $("btnPlan").onclick=()=>{ planning=!planning; if(planning){ if(typeof pickInc!=="undefined"&&pickInc) setPickInc(false); } $("btnPlan").setAttribute("aria-pressed",planning);
   $("btnPlan").textContent=planning?"Fertig":"Punkte setzen"; map.getCanvas().style.cursor=planning?"crosshair":"";
   if(planning && window.innerWidth<700) setSheet(true);
-  $("btnBarUndo").hidden=!planning;
+  $("btnBarUndo").hidden=!planning; $("btnStraight").hidden=!planning||state.mode==="straight";
   if(planning) setStatus("Karte antippen: Punkt setzen. Punkt antippen: entfernen. Punkt ziehen: verschieben."); else setStatus(""); };
 $("btnBarUndo").onclick=()=>$("btnUndo").click();
+$("btnStraight").onclick=()=>{ straightNext=!straightNext; $("btnStraight").setAttribute("aria-pressed",straightNext);
+  setStatus(straightNext?"Neue Abschnitte werden gerade verbunden (quer durchs Gelände).":"Neue Abschnitte folgen wieder der Linienführung."); };
 
 let pointPop=null;
 function showPop(pop){ if(pointPop) pointPop.remove(); pointPop=pop.addTo(map); pop.on("close",()=>{ if(pointPop===pop) pointPop=null; }); return pop; }
@@ -664,9 +675,40 @@ function openPointMenu(i){
   const div=document.createElement("div"); div.className="pop";
   const h=document.createElement("strong"); h.textContent=label; h.style.display="block"; h.style.marginBottom="6px";
   const b=document.createElement("button"); b.className="btn primary"; b.textContent="Punkt entfernen";
-  b.onclick=()=>{ pushHistory(); state.waypoints.splice(i,1); pointPop&&pointPop.remove(); pointPop=null; save(); renderMarkers(); route(); };
+  b.onclick=()=>{ pushHistory(); syncSeg();
+    if(i===0) state.segModes.shift(); else if(i===n-1) state.segModes.pop(); else state.segModes.splice(i,1);
+    state.waypoints.splice(i,1); pointPop&&pointPop.remove(); pointPop=null; save(); renderMarkers(); route(); };
   div.append(h,b);
+  if(i<n-1){ syncSeg(); const st=state.segModes[i]==="straight";
+    const c=document.createElement("button"); c.className="btn"; c.style.cssText="display:block;margin-top:6px;width:100%";
+    c.textContent=st?`${wpLabel(i)} → ${wpLabel(i+1)}: wieder entlang Wegen`:`${wpLabel(i)} → ${wpLabel(i+1)} gerade verbinden`;
+    c.onclick=()=>setSegMode(i,st?null:"straight");
+    if(state.mode!=="straight"||st) div.append(c); }
   pointPop=new maplibregl.Popup({offset:10,anchor:"bottom",closeButton:true,closeOnClick:false}).setLngLat(state.waypoints[i]).setDOMContent(div).addTo(map);
+}
+function setSegMode(k,m){ pushHistory(); syncSeg(); state.segModes[k]=m; pointPop&&pointPop.remove(); pointPop=null; save(); route(); }
+// Abschnitts-Menü: Tipp auf die Linie
+function openSegMenu(k,ll){
+  syncSeg(); const st=state.segModes[k]==="straight";
+  const div=document.createElement("div"); div.className="pop";
+  const h=document.createElement("strong"); h.textContent=`Abschnitt ${wpLabel(k)} → ${wpLabel(k+1)}`; h.style.display="block"; h.style.marginBottom="2px";
+  const sub=document.createElement("div"); sub.className="hint"; sub.style.marginBottom="6px";
+  sub.textContent=st?"Gerade Linie":"Linienführung: "+$("mode").selectedOptions[0].textContent;
+  const b1=document.createElement("button"); b1.className="btn primary"; b1.style.cssText="display:block;width:100%";
+  b1.textContent="Punkt hier einfügen";
+  b1.onclick=()=>{ pushHistory(); syncSeg(); state.waypoints.splice(k+1,0,[ll.lng,ll.lat]); state.segModes.splice(k,0,state.segModes[k]);
+    pointPop&&pointPop.remove(); pointPop=null; save(); renderMarkers(); route(); };
+  div.append(h,sub,b1);
+  if(state.mode!=="straight"||st){ const b2=document.createElement("button"); b2.className="btn"; b2.style.cssText="display:block;width:100%;margin-top:6px";
+    b2.textContent=st?"Wieder entlang Wegen führen":"Diesen Abschnitt gerade verbinden"; b2.onclick=()=>setSegMode(k,st?null:"straight"); div.append(b2); }
+  showPop(new maplibregl.Popup({offset:8,closeOnClick:false}).setLngLat(ll).setDOMContent(div));
+}
+// Welcher Abschnitt liegt unter dem Tipp? (nächster Linienpunkt am Bildschirm)
+function segAt(pt){
+  if(routeCoords.length<2||!routeMeta.wpIdx) return -1;
+  if(!map.queryRenderedFeatures([[pt.x-10,pt.y-10],[pt.x+10,pt.y+10]],{layers:["route-line","route-casing"]}).length) return -1;
+  let bi=0, bd=Infinity; routeCoords.forEach((c,i)=>{ const q=map.project([c[0],c[1]]); const d=(q.x-pt.x)**2+(q.y-pt.y)**2; if(d<bd){bd=d;bi=i;} });
+  const w=routeMeta.wpIdx; let k=0; for(let i=0;i<w.length-1;i++) if(bi>=w[i]) k=i; return k;
 }
 function renderMarkers(){
   if(pointPop){ pointPop.remove(); pointPop=null; }
@@ -708,11 +750,13 @@ map.on("click",e=>{
     const wf=waterAt(e.point,18);
     const wsrc=wf&&waterFeats.get(wf.properties.osm.replace("/",""));   // exakte Koordinate, nicht die gerundete aus der Kachel
     const ll=wf?(wsrc||wf).geometry.coordinates.slice():[e.lngLat.lng,e.lngLat.lat];
-    pushHistory(); state.waypoints.push(ll); save(); renderMarkers(); route();
+    pushHistory(); syncSeg(); if(state.waypoints.length) state.segModes.push(straightNext?"straight":null);
+    state.waypoints.push(ll); save(); renderMarkers(); route();
     if(wf) setStatus(["pillar","hydrant"].includes(wf.properties.k)?"Punkt am Hydranten gesetzt.":"Punkt an der Wasserentnahmestelle gesetzt.");
     return;
   }
   { const wf=waterAt(e.point,12); if(wf){ showWaterPopup(wf); return; } }
+  { const k=segAt(e.point); if(k>=0){ openSegMenu(k,e.lngLat); return; } }
   if(state.flur||state.hof){
     const box=[[e.point.x-6,e.point.y-6],[e.point.x+6,e.point.y+6]];
     const nf=map.queryRenderedFeatures(box,{layers:["hof-label","hof-dot","flur-label"].filter(l=>map.getLayoutProperty(l,"visibility")==="visible")})[0];
@@ -726,9 +770,11 @@ map.on("click",e=>{
   }
 });
 
-$("btnUndo").onclick=()=>{ if(!undoStack.length) return; state.waypoints=JSON.parse(undoStack.pop()); save(); renderMarkers(); route(); };
-$("btnReverse").onclick=()=>{ pushHistory(); state.waypoints.reverse(); save(); renderMarkers(); route(); };
-$("btnClear").onclick=()=>{ pushHistory(); state.waypoints=[]; save(); renderMarkers(); route(); clearCands(); };
+$("btnUndo").onclick=()=>{ if(!undoStack.length) return; const h=JSON.parse(undoStack.pop());
+  if(Array.isArray(h)){ state.waypoints=h; state.segModes=[]; } else { state.waypoints=h.w; state.segModes=h.s||[]; }
+  save(); renderMarkers(); route(); };
+$("btnReverse").onclick=()=>{ pushHistory(); state.waypoints.reverse(); state.segModes.reverse(); save(); renderMarkers(); route(); };
+$("btnClear").onclick=()=>{ pushHistory(); state.waypoints=[]; state.segModes=[]; save(); renderMarkers(); route(); clearCands(); };
 $("btnFit").onclick=()=>fitRoute();
 
 // ---------- Höhendaten (eigene Abfrage der Geländekacheln) ----------
@@ -763,7 +809,8 @@ async function route(){
   if(wp.length<2){ routeCoords=[]; routeMeta={}; updateRoute(); setStatus(wp.length?"Noch einen Punkt setzen.":""); return; }
   setStatus("Route wird berechnet …");
   try{
-    const {coords,meta}=await fetchRoute(wp,state.mode);
+    syncSeg();
+    const {coords,meta}=await fetchRoute(wp,state.mode,state.segModes);
     if(seq!==routeSeq) return;
     routeCoords=coords; routeMeta=meta; updateRoute(); setStatus("");
   }catch(err){
@@ -778,27 +825,49 @@ function routeErrorText(err){
   else if(/not.*(found|mapped)|position not mapped|no track found/i.test(msg)) msg="Keine Route gefunden. Liegt ein Punkt zu weit von einem Weg entfernt? Punkt näher an einen Weg setzen.";
   return msg;
 }
-// Linie mit Höhen zwischen Wegpunkten: [lng,lat,ele]
-async function fetchRoute(wp,mode){
-    let coords, meta={};
-    if(mode==="straight"){
-      coords=[];
-      for(let i=0;i<wp.length-1;i++){
-        const a=wp[i], b=wp[i+1], d=hav(a,b), steps=Math.max(1,Math.min(400,Math.ceil(d/20)));
-        for(let s=(i?1:0);s<=steps;s++){ const t=s/steps; coords.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]); }
-      }
-      const eles=await Promise.all(coords.map(c=>elevationAt(c[0],c[1])));
-      coords=coords.map((c,i)=>[c[0],c[1],eles[i]]);
-    } else {
-      const ll=wp.map(p=>p[0].toFixed(6)+","+p[1].toFixed(6)).join("|");
-      const url=`${state.brouter}?lonlats=${ll}&profile=${encodeURIComponent(routingProfile(mode))}&alternativeidx=0&format=geojson`;
-      const r=await fetch(url); const txt=await r.text();
-      if(!r.ok || txt.trim()[0]!=="{") throw new Error((txt.trim().slice(0,160))||("Server antwortet mit "+r.status));
-      const gj=JSON.parse(txt); const f=gj.features[0];
-      coords=f.geometry.coordinates; meta.time=+f.properties["total-time"]||null;
-      if(coords.some(c=>c[2]==null)){ const e=await Promise.all(coords.map(c=>c[2]==null?elevationAt(c[0],c[1]):c[2])); coords=coords.map((c,i)=>[c[0],c[1],e[i]]); }
-    }
-    return {coords,meta};
+// Linie mit Höhen zwischen Wegpunkten: [lng,lat,ele].
+// segs[i] legt die Linienführung des Abschnitts i (Punkt i → i+1) fest; leer = Hauptauswahl „mode“.
+async function straightCoords(wp){
+  const coords=[];
+  for(let i=0;i<wp.length-1;i++){
+    const a=wp[i], b=wp[i+1], d=hav(a,b), steps=Math.max(1,Math.min(400,Math.ceil(d/20)));
+    for(let s=(i?1:0);s<=steps;s++){ const t=s/steps; coords.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]); }
+  }
+  const eles=await Promise.all(coords.map(c=>elevationAt(c[0],c[1])));
+  return coords.map((c,i)=>[c[0],c[1],eles[i]]);
+}
+async function brouterCoords(wp,mode){
+  const ll=wp.map(p=>p[0].toFixed(6)+","+p[1].toFixed(6)).join("|");
+  const url=`${state.brouter}?lonlats=${ll}&profile=${encodeURIComponent(routingProfile(mode))}&alternativeidx=0&format=geojson`;
+  const r=await fetch(url); const txt=await r.text();
+  if(!r.ok || txt.trim()[0]!=="{") throw new Error((txt.trim().slice(0,160))||("Server antwortet mit "+r.status));
+  const gj=JSON.parse(txt); const f=gj.features[0];
+  let coords=f.geometry.coordinates;
+  if(coords.some(c=>c[2]==null)){ const e=await Promise.all(coords.map(c=>c[2]==null?elevationAt(c[0],c[1]):c[2])); coords=coords.map((c,i)=>[c[0],c[1],e[i]]); }
+  return {coords,time:+f.properties["total-time"]||null};
+}
+async function fetchRoute(wp,mode,segs){
+  // aufeinanderfolgende Abschnitte mit gleicher Linienführung zusammenfassen (eine Serveranfrage je Gruppe)
+  const groups=[];
+  for(let i=0;i<wp.length-1;i++){
+    const m=(segs&&segs[i])||mode, g=groups[groups.length-1];
+    if(g&&g.m===m) g.b=i+1; else groups.push({m,a:i,b:i+1});
+  }
+  let coords=[], time=0, timeOk=true;
+  for(const g of groups){
+    const part=wp.slice(g.a,g.b+1);
+    let pc;
+    if(g.m==="straight"){ pc=await straightCoords(part); timeOk=false; }
+    else { const r=await brouterCoords(part,g.m); pc=r.coords; if(r.time) time+=r.time; else timeOk=false; }
+    coords=coords.concat(coords.length?pc.slice(1):pc);
+  }
+  // Index des nächstgelegenen Linienpunkts je Wegpunkt (für Abschnitts-Menü und Darstellung)
+  const wpIdx=[]; let j=0;
+  wp.forEach((p,k)=>{ if(k===0){ wpIdx.push(0); return; }
+    if(k===wp.length-1){ wpIdx.push(coords.length-1); return; }
+    let best=j, bd=Infinity; for(let q=j;q<coords.length;q++){ const dd=hav(p,coords[q]); if(dd<bd){bd=dd;best=q;} if(dd>bd+2000) break; }
+    wpIdx.push(best); j=best; });
+  return {coords,meta:{time:timeOk&&time?time:null,wpIdx}};
 }
 
 // ---------- Auswertung & Profil ----------
@@ -867,6 +936,7 @@ function updateRoute(){
   $("ebBox").hidden=!isEb;
   if(routeCoords.length<2){
     src&&src.setData({type:"FeatureCollection",features:[]});
+    map.getSource("routeStraight")&&map.getSource("routeStraight").setData({type:"FeatureCollection",features:[]});
     ["sDist","sUp","sDown","sMax","sGrade","sTime"].forEach(id=>$(id).textContent="–");
     $("summary").textContent=state.waypoints.length?"Noch einen Punkt setzen":(APP==="fs"?"Keine Leitung":"Keine Route");
     profile={d:[],e:[],seg:[]}; fsResult=null; clearPumps(); $("ebInfo").textContent="";
@@ -875,6 +945,10 @@ function updateRoute(){
   }
   const a=analyse(); profile=a;
   src.setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routeCoords.map(c=>[c[0],c[1]])}});
+  // gerade verbundene Abschnitte kennzeichnen (nur wenn die Hauptauswahl nicht ohnehin „gerade“ ist)
+  { const w=routeMeta.wpIdx, f=[]; syncSeg();
+    if(w&&state.mode!=="straight") state.segModes.forEach((m,k)=>{ if(m==="straight"&&w[k+1]>w[k]) f.push({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:routeCoords.slice(w[k],w[k+1]+1).map(c=>[c[0],c[1]])}}); });
+    map.getSource("routeStraight").setData({type:"FeatureCollection",features:f}); }
   if(state.app==="fs"){ updateFs(); return; }
   clearPumps();
   // Route nach Steigung einfärben
@@ -1397,7 +1471,7 @@ async function findWater(){
 }
 function adoptCand(c){
   pushHistory(); routeSeq++;
-  state.waypoints=[c.f.geometry.coordinates.slice(),state.incident.slice()]; save();
+  state.waypoints=[c.f.geometry.coordinates.slice(),state.incident.slice()]; state.segModes=[null]; save();
   clearCands(); renderMarkers();
   routeCoords=c.coords; routeMeta={}; updateRoute(); fitRoute();
   setStatus(`Leitung ab ${waterTitle(c.f.properties)}${c.f.properties.ref?" "+c.f.properties.ref:""} übernommen. Punkte lassen sich weiter verschieben.`);
@@ -1427,7 +1501,7 @@ $("gpxFile").onchange=async e=>{
     let coords=pts.map(p=>{ const el=p.getElementsByTagName("ele")[0]; return [+p.getAttribute("lon"),+p.getAttribute("lat"),el?+el.textContent:null]; });
     if(coords.some(c=>c[2]==null)){ setStatus("Höhen werden ergänzt …"); const ev=await Promise.all(coords.map(c=>c[2]==null?elevationAt(c[0],c[1]):c[2])); coords=coords.map((c,i)=>[c[0],c[1],ev[i]]); }
     pushHistory(); routeSeq++;
-    state.waypoints=[coords[0].slice(0,2),coords[coords.length-1].slice(0,2)]; save(); renderMarkers();
+    state.waypoints=[coords[0].slice(0,2),coords[coords.length-1].slice(0,2)]; state.segModes=[null]; save(); renderMarkers();
     routeCoords=coords; routeMeta={}; updateRoute(); fitRoute();
     setStatus(`„${f.name}“ geladen. Beim Verschieben eines Punktes wird neu geroutet.`);
   }catch(err){ setStatus("Die Datei konnte nicht als GPX gelesen werden.",true); }
