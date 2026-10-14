@@ -132,8 +132,16 @@ button{cursor:pointer}
 #actions{margin-top:8px}
 
 /* Marker */
-.wp{width:30px;height:30px;border-radius:50%;background:var(--route);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);display:grid;place-items:center;font:700 13px var(--font-label);cursor:grab}
-.wp.end{background:#1c2620}
+/* Wegpunkt als Nadel: Die Spitze oben ist der genaue Punkt, der Griff unten wird mit dem Finger gezogen,
+   so bleibt die Spitze beim Verschieben über dem Finger sichtbar */
+.wp{width:34px;height:62px;cursor:grab;touch-action:none}
+.wp .tip{position:absolute;left:12px;top:0;width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid var(--route);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.wp .stem{position:absolute;left:15.5px;top:9px;width:3px;height:21px;background:var(--route);box-shadow:0 0 0 1px #fff,0 1px 3px rgba(0,0,0,.35)}
+.wp .head{position:absolute;left:0;top:28px;width:34px;height:34px;border-radius:50%;background:var(--route);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);display:grid;place-items:center;font:700 14px var(--font-label)}
+.wp.end .head{background:#1c2620}
+.wp.end .stem{background:#1c2620}
+.wp.end .tip{border-color:#1c2620}
+.wp.dragging .tip{width:14px;height:14px;left:10px;top:-2px;background:transparent;border-width:2px}
 .me{width:16px;height:16px;border-radius:50%;background:#2a7de1;border:3px solid #fff;box-shadow:0 0 0 6px rgba(42,125,225,.25)}
 .hov{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--route);box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .maplibregl-popup-content{background:var(--panel-solid);color:var(--fg);border-radius:10px;font:13px var(--font-ui);padding:10px 12px}
@@ -603,17 +611,21 @@ function openPointMenu(i){
   const b=document.createElement("button"); b.className="btn primary"; b.textContent="Punkt entfernen";
   b.onclick=()=>{ pushHistory(); state.waypoints.splice(i,1); pointPop&&pointPop.remove(); pointPop=null; save(); renderMarkers(); route(); };
   div.append(h,b);
-  pointPop=new maplibregl.Popup({offset:18,closeButton:true,closeOnClick:false}).setLngLat(state.waypoints[i]).setDOMContent(div).addTo(map);
+  pointPop=new maplibregl.Popup({offset:10,anchor:"bottom",closeButton:true,closeOnClick:false}).setLngLat(state.waypoints[i]).setDOMContent(div).addTo(map);
 }
 function renderMarkers(){
   if(pointPop){ pointPop.remove(); pointPop=null; }
   markers.forEach(m=>m.remove()); markers=[];
   state.waypoints.forEach((ll,i)=>{
     const el=document.createElement("div"); el.className="wp"+(i===state.waypoints.length-1&&i>0?" end":"");
-    el.textContent=i===0?"A":(i===state.waypoints.length-1?"Z":String(i));
-    const m=new maplibregl.Marker({element:el,draggable:true}).setLngLat(ll).addTo(map);
-    m.on("dragstart",()=>pushHistory());
-    m.on("dragend",()=>{ const p=m.getLngLat(); state.waypoints[i]=[p.lng,p.lat]; save(); route(); });
+    const tip=document.createElement("div"); tip.className="tip";
+    const stem=document.createElement("div"); stem.className="stem";
+    const head=document.createElement("div"); head.className="head"; head.textContent=i===0?"A":(i===state.waypoints.length-1?"Z":String(i));
+    el.append(tip,stem,head);
+    // Ankerpunkt = Mitte der Spitze (5 px unter der Oberkante)
+    const m=new maplibregl.Marker({element:el,draggable:true,anchor:"top",offset:[0,-5]}).setLngLat(ll).addTo(map);
+    m.on("dragstart",()=>{ pushHistory(); el.classList.add("dragging"); });
+    m.on("dragend",()=>{ el.classList.remove("dragging"); const p=m.getLngLat(); state.waypoints[i]=[p.lng,p.lat]; save(); route(); });
     // Antippen erkennen (auch am Handy, wo ein „click“ nach minimaler Fingerbewegung ausbleibt)
     let down=null, dragged=false;
     m.on("drag",()=>{ dragged=true; });
