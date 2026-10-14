@@ -147,6 +147,18 @@ button{cursor:pointer}
 .wp.end .head{background:#1c2620}
 .wp.end .stem{background:#1c2620}
 .wp.end .tip{border-color:#1c2620}
+/* Einsatzstelle: orange Nadel mit Flamme, längerer Stiel, damit sie neben dem Ziel-Punkt Z sichtbar bleibt */
+.wp.inc{height:96px}
+.wp.inc .stem{height:55px;background:#e8590c}
+.wp.inc .tip{border-color:#e8590c}
+.wp.inc .head{top:62px;background:#e8590c}
+.wp.inc .head svg{width:20px;height:20px}
+.cbadge{width:24px;height:24px;border-radius:50%;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:grid;place-items:center;font:700 13px var(--font-label)}
+#wsBox{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:8px}
+#wsList{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+#wsList li{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+#wsList li b{width:26px;height:26px;border-radius:50%;color:#fff;display:grid;place-items:center;font:700 14px var(--font-label);grid-row:span 2;align-self:center}
+#wsList li small{color:var(--muted)}
 .wp.dragging .tip{width:14px;height:14px;left:10px;top:-2px;background:transparent;border-width:2px}
 .me{width:16px;height:16px;border-radius:50%;background:#2a7de1;border:3px solid #fff;box-shadow:0 0 0 6px rgba(42,125,225,.25)}
 .hov{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--route);box-shadow:0 1px 4px rgba(0,0,0,.4)}
@@ -188,6 +200,9 @@ button{cursor:pointer}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
   </button>
   <button class="fab" id="btnNorth" title="Nach Norden ausrichten" aria-label="Nach Norden ausrichten">N</button>
+  <button class="fab only-fs" id="btnInc" aria-pressed="false" title="Einsatzstelle setzen" aria-label="Einsatzstelle setzen" style="color:#e8590c">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5-2 5-2 8a2 2 0 0 0 4 0c0-1 .5-2 1-2.5C17 9 18 11.5 18 14a6 6 0 0 1-12 0c0-4.5 4.5-7 6-12z"/></svg>
+  </button>
 </div>
 
 <div id="layers" hidden>
@@ -258,6 +273,11 @@ button{cursor:pointer}
   <div class="row">
     <select id="mode" aria-label="Linienführung"></select>
   </div>
+    <div id="wsBox" class="only-fs" hidden>
+      <div class="row" style="justify-content:space-between"><span class="label">Wasserentnahme für die Einsatzstelle</span><button class="btn" id="wsClose" style="height:28px;padding:0 8px" aria-label="Vorschläge schließen">✕</button></div>
+      <ol id="wsList"></ol>
+      <p class="fsnote" id="wsNote"></p>
+    </div>
     <div id="fsStats" hidden>
       <div id="stats2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:4px 12px;margin:10px 0 6px">
         <div><span class="label">Länge</span><b id="fLen" class="num">–</b></div>
@@ -364,6 +384,7 @@ const state = Object.assign({
   waypoints:null, view:null, flur:false, hof:false, zSmall:11, zLarge:15, slopeRoute:false
 }, APP==="fs" ? {view:tourSaved.view||null, base:tourSaved.base||"topo", brouter:tourSaved.brouter||"https://brouter.de/brouter"} : {}, saved || {});
 state.app = APP;
+if(APP!=="fs") state.incident=null;
 if(APP==="fs"){ state.bike=false; state.mtb=false; state.cycling=false; state.slopeRoute=false; if(state.water==null) state.water=true; }
 else state.water=false;
 state.fs = Object.assign({flow:800,out:10,pin:2,loss:1,hose:20,skip:8}, state.fs||{});
@@ -422,6 +443,7 @@ const style = {
       attribution:'Flur- und Hofnamen: <a href="https://flurnamen.natura.museum">Flurnamen Südtirols, Naturmuseum Südtirol</a> (CC BY-NC-ND 4.0)'},
     namesHof:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
     water:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
+    cands:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
     route:{type:"geojson",data:{type:"FeatureCollection",features:[]},lineMetrics:true}
   },
   layers:[
@@ -453,6 +475,9 @@ const style = {
     {id:"route-outline",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#14101a","line-opacity":0.6,"line-width":["interpolate",["linear"],["zoom"],10,9,16,14]}},
     {id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],10,7,16,11]}},
     {id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":ROUTE_COLOR,"line-width":["interpolate",["linear"],["zoom"],10,4,16,7]}},
+    // Vorschläge für Wasserentnahme (bis zu drei Leitungen, gestrichelt in ihrer Farbe)
+    {id:"cand-casing",type:"line",source:"cands",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":7,"line-opacity":0.9}},
+    {id:"cand-line",type:"line",source:"cands",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":["get","col"],"line-width":4,"line-dasharray":[2,1.2]}},
     // Hydranten und Wasserentnahmestellen (OpenStreetMap), über der Leitung, damit sie sichtbar bleiben
     {id:"water-dot",type:"circle",source:"water",minzoom:12,layout:{visibility:"none"},
       paint:{"circle-radius":["interpolate",["linear"],["zoom"],12,3.5,15,8,18,11],
@@ -624,7 +649,7 @@ let markers=[];
 const undoStack=[];
 function pushHistory(){ undoStack.push(JSON.stringify(state.waypoints)); if(undoStack.length>50) undoStack.shift(); }
 
-$("btnPlan").onclick=()=>{ planning=!planning; $("btnPlan").setAttribute("aria-pressed",planning);
+$("btnPlan").onclick=()=>{ planning=!planning; if(planning){ if(typeof pickInc!=="undefined"&&pickInc) setPickInc(false); } $("btnPlan").setAttribute("aria-pressed",planning);
   $("btnPlan").textContent=planning?"Fertig":"Punkte setzen"; map.getCanvas().style.cursor=planning?"crosshair":"";
   if(planning && window.innerWidth<700) setSheet(true);
   $("btnBarUndo").hidden=!planning;
@@ -675,6 +700,9 @@ map.on("click",e=>{
   if(tgt&&tgt.closest&&tgt.closest(".maplibregl-marker,.maplibregl-popup")) return;
   if(pointPop){ pointPop.remove(); pointPop=null; if(!planning) return; }
   if(!$("layers").hidden){ $("layers").hidden=true; $("btnLayers").setAttribute("aria-pressed",false); if(!planning) return; }
+  if(pickInc){
+    setPickInc(false); state.incident=[e.lngLat.lng,e.lngLat.lat]; save(); renderIncident(); findWater(); return;
+  }
   if(planning){
     // Punkt rastet an einem Hydranten / einer Entnahmestelle in der Nähe ein
     const wf=waterAt(e.point,18);
@@ -700,7 +728,7 @@ map.on("click",e=>{
 
 $("btnUndo").onclick=()=>{ if(!undoStack.length) return; state.waypoints=JSON.parse(undoStack.pop()); save(); renderMarkers(); route(); };
 $("btnReverse").onclick=()=>{ pushHistory(); state.waypoints.reverse(); save(); renderMarkers(); route(); };
-$("btnClear").onclick=()=>{ pushHistory(); state.waypoints=[]; save(); renderMarkers(); route(); };
+$("btnClear").onclick=()=>{ pushHistory(); state.waypoints=[]; save(); renderMarkers(); route(); clearCands(); };
 $("btnFit").onclick=()=>fitRoute();
 
 // ---------- Höhendaten (eigene Abfrage der Geländekacheln) ----------
@@ -735,8 +763,25 @@ async function route(){
   if(wp.length<2){ routeCoords=[]; routeMeta={}; updateRoute(); setStatus(wp.length?"Noch einen Punkt setzen.":""); return; }
   setStatus("Route wird berechnet …");
   try{
+    const {coords,meta}=await fetchRoute(wp,state.mode);
+    if(seq!==routeSeq) return;
+    routeCoords=coords; routeMeta=meta; updateRoute(); setStatus("");
+  }catch(err){
+    if(seq!==routeSeq) return;
+    setStatus(routeErrorText(err),true);
+  }
+}
+function routeErrorText(err){
+  let msg=String(err.message||err);
+  if(/Failed to fetch|NetworkError|Load failed/i.test(msg)) msg="Routing-Server nicht erreichbar. Internetverbindung prüfen oder „Gerade Linie“ wählen.";
+  else if(/profile/i.test(msg)) msg="Dieses Profil kennt der Routing-Server nicht: "+msg;
+  else if(/not.*(found|mapped)|position not mapped|no track found/i.test(msg)) msg="Keine Route gefunden. Liegt ein Punkt zu weit von einem Weg entfernt? Punkt näher an einen Weg setzen.";
+  return msg;
+}
+// Linie mit Höhen zwischen Wegpunkten: [lng,lat,ele]
+async function fetchRoute(wp,mode){
     let coords, meta={};
-    if(state.mode==="straight"){
+    if(mode==="straight"){
       coords=[];
       for(let i=0;i<wp.length-1;i++){
         const a=wp[i], b=wp[i+1], d=hav(a,b), steps=Math.max(1,Math.min(400,Math.ceil(d/20)));
@@ -746,23 +791,14 @@ async function route(){
       coords=coords.map((c,i)=>[c[0],c[1],eles[i]]);
     } else {
       const ll=wp.map(p=>p[0].toFixed(6)+","+p[1].toFixed(6)).join("|");
-      const url=`${state.brouter}?lonlats=${ll}&profile=${encodeURIComponent(routingProfile(state.mode))}&alternativeidx=0&format=geojson`;
+      const url=`${state.brouter}?lonlats=${ll}&profile=${encodeURIComponent(routingProfile(mode))}&alternativeidx=0&format=geojson`;
       const r=await fetch(url); const txt=await r.text();
       if(!r.ok || txt.trim()[0]!=="{") throw new Error((txt.trim().slice(0,160))||("Server antwortet mit "+r.status));
       const gj=JSON.parse(txt); const f=gj.features[0];
       coords=f.geometry.coordinates; meta.time=+f.properties["total-time"]||null;
       if(coords.some(c=>c[2]==null)){ const e=await Promise.all(coords.map(c=>c[2]==null?elevationAt(c[0],c[1]):c[2])); coords=coords.map((c,i)=>[c[0],c[1],e[i]]); }
     }
-    if(seq!==routeSeq) return;
-    routeCoords=coords; routeMeta=meta; updateRoute(); setStatus("");
-  }catch(err){
-    if(seq!==routeSeq) return;
-    let msg=String(err.message||err);
-    if(/Failed to fetch|NetworkError|Load failed/i.test(msg)) msg="Routing-Server nicht erreichbar. Internetverbindung prüfen oder „Gerade Linie“ wählen.";
-    else if(/profile/i.test(msg)) msg="Dieses Profil kennt der Routing-Server nicht: "+msg;
-    else if(/not.*(found|mapped)|position not mapped|no track found/i.test(msg)) msg="Keine Route gefunden. Liegt ein Punkt zu weit von einem Weg entfernt? Punkt näher an einen Weg setzen.";
-    setStatus(msg,true);
-  }
+    return {coords,meta};
 }
 
 // ---------- Auswertung & Profil ----------
@@ -887,8 +923,9 @@ function pumpPin(cls,label){ const el=document.createElement("div"); el.classNam
   el.append(h,st,t); return el; }
 
 // Route gleichmäßig in Schritte von 5 m teilen und Höhen aus dem Geländemodell holen
-async function resampleRoute(step){
-  const c=routeCoords, cum=[0];
+async function resampleRoute(step){ return resampleCoords(routeCoords,step); }
+async function resampleCoords(c,step){
+  const cum=[0];
   for(let i=1;i<c.length;i++) cum.push(cum[i-1]+hav(c[i-1],c[i]));
   const len=cum[cum.length-1], n=Math.max(2,Math.min(6000,Math.round(len/step)+1)), st=len/(n-1);
   const pts=[]; let j=0;
@@ -1210,6 +1247,17 @@ function waterLabel(t){
   const v=t["water_tank:volume"]||t["water_volume"]; if(v) p.push(v+(/\d$/.test(v)?" m³":""));
   return p.join(" · ");
 }
+// Hydranten in einem Rechteck [S,W,N,E] laden und zum Bestand hinzufügen
+async function fetchWaterBox(box){
+  const q=`[out:json][timeout:25];nwr["emergency"~"^(fire_hydrant|water_tank|suction_point|fire_water_pond)$"](${box.map(v=>v.toFixed(5)).join(",")});out center tags;`;
+  const r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}});
+  if(!r.ok) throw new Error(r.status);
+  const j=await r.json();
+  j.elements.forEach(el=>{ const lon=el.lon??(el.center&&el.center.lon), lat=el.lat??(el.center&&el.center.lat); if(lon==null) return;
+    const t=el.tags||{}; waterFeats.set(el.type+el.id,{type:"Feature",properties:Object.assign({},t,{k:waterKind(t),lbl:waterLabel(t),osm:el.type+"/"+el.id}),geometry:{type:"Point",coordinates:[lon,lat]}}); });
+  waterBoxes.push(box);
+  map.getSource("water").setData({type:"FeatureCollection",features:[...waterFeats.values()]});
+}
 async function loadWater(){
   if(APP!=="fs"||!state.water) return;
   if(map.getZoom()<12){ $("waterHint").textContent="Zum Anzeigen der Hydranten näher heranzoomen (Zoomstufe 12)."; return; }
@@ -1218,15 +1266,8 @@ async function loadWater(){
   if(waterBusy) return; waterBusy=true;
   const dy=(N-S)*0.5, dx=(E-W)*0.5, box=[S-dy,W-dx,N+dy,E+dx];        // großzügig laden, damit Verschieben nicht sofort nachlädt
   $("waterHint").textContent="Hydranten werden geladen …";
-  const q=`[out:json][timeout:25];nwr["emergency"~"^(fire_hydrant|water_tank|suction_point|fire_water_pond)$"](${box.map(v=>v.toFixed(5)).join(",")});out center tags;`;
   try{
-    const r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}});
-    if(!r.ok) throw new Error(r.status);
-    const j=await r.json();
-    j.elements.forEach(el=>{ const lon=el.lon??(el.center&&el.center.lon), lat=el.lat??(el.center&&el.center.lat); if(lon==null) return;
-      const t=el.tags||{}; waterFeats.set(el.type+el.id,{type:"Feature",properties:Object.assign({},t,{k:waterKind(t),lbl:waterLabel(t),osm:el.type+"/"+el.id}),geometry:{type:"Point",coordinates:[lon,lat]}}); });
-    waterBoxes.push(box);
-    map.getSource("water").setData({type:"FeatureCollection",features:[...waterFeats.values()]});
+    await fetchWaterBox(box);
     const n=[...waterFeats.values()].filter(f=>{const [x,y]=f.geometry.coordinates;return y>=S&&y<=N&&x>=W&&x<=E;}).length;
     $("waterHint").textContent=`${n} Hydranten bzw. Entnahmestellen im Ausschnitt (OpenStreetMap, nicht unbedingt vollständig). Antippen für Details; beim Punktesetzen rastet ein Punkt am Hydranten ein.`;
   }catch(e){ $("waterHint").textContent="Hydranten-Daten nicht erreichbar (Overpass-Server ausgelastet). Später erneut versuchen."; }
@@ -1270,6 +1311,98 @@ map.on("moveend",()=>{
   clearTimeout(waterT); waterT=setTimeout(loadWater,600);
 });
 
+// ---------- Einsatzstelle und Suche nach der besten Wasserentnahme (Feuerwehr) ----------
+const INC_SVG='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5-2 5-2 8a2 2 0 0 0 4 0c0-1 .5-2 1-2.5C17 9 18 11.5 18 14a6 6 0 0 1-12 0c0-4.5 4.5-7 6-12z"/></svg>';
+const CAND_COLORS=["#0f7b4a","#2160b8","#7b3fb5"];
+const WS_RADIUS=5000, WS_MAX_CHECK=8;
+let incMarker=null, pickInc=false, candMarkers=[], wsSeq=0;
+function setPickInc(on){ pickInc=on; $("btnInc").setAttribute("aria-pressed",on);
+  if(on){ if(planning) $("btnPlan").click(); if(window.innerWidth<700) setSheet(true); setStatus("Einsatzstelle auf der Karte antippen."); }
+  else if($("status").textContent.startsWith("Einsatzstelle auf")) setStatus(""); }
+$("btnInc").onclick=()=>setPickInc(!pickInc);
+$("wsClose").onclick=()=>clearCands();
+function renderIncident(){
+  if(incMarker){ incMarker.remove(); incMarker=null; }
+  if(!state.incident) return;
+  const el=document.createElement("div"); el.className="wp inc"; el.title="Einsatzstelle";
+  const tip=document.createElement("div"); tip.className="tip"; const stem=document.createElement("div"); stem.className="stem";
+  const head=document.createElement("div"); head.className="head"; head.innerHTML=INC_SVG; el.append(tip,stem,head);
+  incMarker=new maplibregl.Marker({element:el,draggable:true,anchor:"top",offset:[0,-5]}).setLngLat(state.incident).addTo(map);
+  incMarker.on("dragstart",()=>el.classList.add("dragging"));
+  incMarker.on("dragend",()=>{ el.classList.remove("dragging"); const p=incMarker.getLngLat(); state.incident=[p.lng,p.lat]; save(); findWater(); });
+  let down=null, dragged=false; incMarker.on("drag",()=>{ dragged=true; });
+  el.addEventListener("pointerdown",ev=>{ down={x:ev.clientX,y:ev.clientY}; dragged=false; });
+  el.addEventListener("pointerup",ev=>{ if(!down) return; const mv=Math.hypot(ev.clientX-down.x,ev.clientY-down.y); down=null;
+    if(mv<12&&!dragged){ ev.stopPropagation(); openIncMenu(); } });
+}
+function openIncMenu(){
+  const div=document.createElement("div"); div.className="pop";
+  const h=document.createElement("strong"); h.textContent="Einsatzstelle"; h.style.display="block"; h.style.marginBottom="6px";
+  const b1=document.createElement("button"); b1.className="btn primary"; b1.textContent="Wasser suchen"; b1.onclick=()=>{ pointPop&&pointPop.remove(); findWater(); };
+  const b2=document.createElement("button"); b2.className="btn"; b2.textContent="Entfernen"; b2.style.marginLeft="6px";
+  b2.onclick=()=>{ pointPop&&pointPop.remove(); state.incident=null; save(); renderIncident(); clearCands(); };
+  div.append(h,b1,b2);
+  showPop(new maplibregl.Popup({offset:10,anchor:"bottom",closeOnClick:false}).setLngLat(state.incident).setDOMContent(div));
+}
+function clearCands(){ wsSeq++; candMarkers.forEach(m=>m.remove()); candMarkers=[];
+  const src=map.getSource("cands"); src&&src.setData({type:"FeatureCollection",features:[]}); $("wsBox").hidden=true; }
+function waterTitle(p){ if(p.k==="hydrant") return p["fire_hydrant:type"]==="underground"?"Unterflurhydrant":p["fire_hydrant:type"]==="wall"?"Wandhydrant":"Hydrant"; return WATER_NAMES[p.k]; }
+async function findWater(){
+  if(!state.incident) return;
+  const seq=++wsSeq, inc=state.incident.slice(), cfg=state.fs;
+  candMarkers.forEach(m=>m.remove()); candMarkers=[]; map.getSource("cands").setData({type:"FeatureCollection",features:[]});
+  $("wsBox").hidden=false; $("wsList").innerHTML=""; $("wsNote").textContent="Wasserentnahmestellen im Umkreis werden gesucht …";
+  setSheet(false);
+  // Hydranten im Umkreis laden (falls noch nicht im Bestand)
+  const dLat=WS_RADIUS/111320, dLng=WS_RADIUS/(111320*Math.cos(inc[1]*Math.PI/180));
+  const box=[inc[1]-dLat,inc[0]-dLng,inc[1]+dLat,inc[0]+dLng];
+  if(!waterBoxes.some(q=>box[0]>=q[0]&&box[1]>=q[1]&&box[2]<=q[2]&&box[3]<=q[3])){
+    try{ await fetchWaterBox(box); }catch(e){ if(seq===wsSeq) $("wsNote").textContent="Hydranten-Daten nicht erreichbar (Overpass-Server ausgelastet). Später erneut versuchen."; return; }
+  }
+  if(seq!==wsSeq) return;
+  const near=[...waterFeats.values()].map(f=>({f,air:hav(f.geometry.coordinates,inc)})).filter(c=>c.air<=WS_RADIUS).sort((a,b)=>a.air-b.air).slice(0,WS_MAX_CHECK);
+  if(!near.length){ $("wsNote").textContent=`Keine Hydranten oder Entnahmestellen im Umkreis von ${WS_RADIUS/1000} km in OpenStreetMap eingetragen.`; return; }
+  // Für jede Stelle: Leitung zur Einsatzstelle führen und Pumpen planen (zwei Anfragen gleichzeitig)
+  const res=[]; let next=0, done=0;
+  const worker=async()=>{ while(next<near.length){ const c=near[next++];
+    try{ const {coords}=await fetchRoute([c.f.geometry.coordinates,inc],state.mode);
+      if(seq!==wsSeq) return;
+      const pts=await resampleCoords(coords,5), plan=planPumps(pts,cfg), len=pts[pts.length-1].d;
+      res.push({...c,coords,len,dh:pts[pts.length-1].h-pts[0].h,plan,pumps:plan.pumps.length,boost:plan.pumps.filter(q=>q.kind==="boost").length});
+    }catch(e){}
+    done++; if(seq===wsSeq) $("wsNote").textContent=`${done} von ${near.length} Stellen berechnet …`;
+  } };
+  await Promise.all([worker(),worker()]);
+  if(seq!==wsSeq) return;
+  if(!res.length){ $("wsNote").textContent="Für keine Stelle im Umkreis ließ sich eine Leitung berechnen. Andere Linienführung wählen (z. B. Gerade Linie)."; return; }
+  // Bewertung: zuerst wenigste Pumpen, dann kürzeste Leitung
+  res.sort((a,b)=>a.pumps-b.pumps||a.len-b.len);
+  const top=res.slice(0,3);
+  map.getSource("cands").setData({type:"FeatureCollection",features:top.map((c,k)=>({type:"Feature",properties:{col:CAND_COLORS[k]},geometry:{type:"LineString",coordinates:c.coords.map(q=>[q[0],q[1]])}})).reverse()});
+  const list=$("wsList"); list.innerHTML="";
+  top.forEach((c,k)=>{
+    const p=c.f.properties, hoses=Math.ceil(c.len/cfg.hose);
+    const li=document.createElement("li"); const b=document.createElement("b"); b.textContent=k+1; b.style.background=CAND_COLORS[k];
+    const t1=document.createElement("span"); t1.textContent=`${waterTitle(p)}${p.ref?" "+p.ref:""}${p.name&&p.name!==waterTitle(p)?" – "+p.name:""} · ${fmtKm(c.len)} · ${c.dh>=0?"+":"−"}${fmtM(Math.abs(c.dh))} Höhe`;
+    const t2=document.createElement("small"); t2.textContent=`${c.pumps} Pumpen${c.plan.endDirect?" (Löschangriff direkt)":""} · ${c.boost} Verstärker · ${hoses} B-Schläuche · Luftlinie ${fmtM(c.air)}`;
+    li.append(b,t1,t2); li.title="Antippen, um diese Leitung zu übernehmen"; li.onclick=()=>adoptCand(c);
+    list.append(li);
+    const el=document.createElement("div"); el.className="cbadge"; el.style.background=CAND_COLORS[k]; el.textContent=k+1;
+    el.addEventListener("click",ev=>{ ev.stopPropagation(); adoptCand(c); });
+    candMarkers.push(new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,-10]}).setLngLat(c.f.geometry.coordinates).addTo(map));
+  });
+  $("wsNote").textContent=`${res.length} von ${near.length} nächstgelegenen Stellen (bis ${WS_RADIUS/1000} km) berechnet, sortiert nach Anzahl Pumpen, dann Leitungslänge. Linienführung: ${$("mode").selectedOptions[0].textContent}. Antippen übernimmt die Leitung. Hydrantendruck und Ergiebigkeit sind nicht berücksichtigt.`;
+  const bb=new maplibregl.LngLatBounds(); bb.extend(inc); top.forEach(c=>c.coords.forEach(q=>bb.extend([q[0],q[1]])));
+  map.fitBounds(bb,{padding:{top:80,left:40,right:70,bottom:$("sheet").offsetHeight+30},maxZoom:16,duration:800});
+}
+function adoptCand(c){
+  pushHistory(); routeSeq++;
+  state.waypoints=[c.f.geometry.coordinates.slice(),state.incident.slice()]; save();
+  clearCands(); renderMarkers();
+  routeCoords=c.coords; routeMeta={}; updateRoute(); fitRoute();
+  setStatus(`Leitung ab ${waterTitle(c.f.properties)}${c.f.properties.ref?" "+c.f.properties.ref:""} übernommen. Punkte lassen sich weiter verschieben.`);
+}
+
 // ---------- GPX ----------
 const esc=s=>String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 $("btnGpx").onclick=()=>{
@@ -1309,6 +1442,7 @@ function start(){ if(started) return; started=true; setSheet(state.sheetMin); se
   });
   if(state.bike) loadBike();
   loadWater();
+  renderIncident();
   loadNames();
 }
 map.once("style.load",start); map.once("load",start);
