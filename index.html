@@ -77,6 +77,7 @@ button{cursor:pointer}
 .chk input{width:18px;height:18px;accent-color:var(--accent)}
 .legend{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:13px;align-items:center;margin:4px 0 0 28px}
 .sw{width:22px;height:4px;border-radius:2px}
+.wsym{width:18px;height:18px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.3);display:grid;place-items:center;font:700 11px var(--font-label)}
 .hint{font-size:13px;color:var(--muted)}
 #layers input[type=range]{width:100%;accent-color:var(--accent)}
 #layers input[type=url]{width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg);font-size:13px}
@@ -121,10 +122,15 @@ button{cursor:pointer}
 #fsWarn{color:var(--route);font-size:13px;margin-top:6px}
 #fsWarn:empty{display:none}
 .fsnote{font-size:12px;color:var(--muted);margin-top:6px}
-.pump{min-width:30px;height:24px;padding:0 5px;border-radius:5px;background:#2160b8;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:grid;place-items:center;font:700 13px var(--font-label);cursor:pointer}
-.pump.end{background:#d1332b}
-.pump.start{background:#163f7a}
-.pump.enddirect{background:#ffffff;color:#d1332b;border-color:#d1332b}
+/* Pumpen als Nadel: Spitze unten = Standort, Beschriftung oben (Wegpunkte haben den Griff unten, so überlappen sie nicht) */
+.pump{--pc:#2160b8;width:44px;height:50px;display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.pump .ph{min-width:32px;height:26px;padding:0 6px;border-radius:6px;background:var(--pc);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:grid;place-items:center;font:700 14px var(--font-label);white-space:nowrap}
+.pump .ps{width:3px;height:14px;background:var(--pc);box-shadow:0 0 0 1px #fff}
+.pump .pt{width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid var(--pc);box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.pump.end{--pc:#d1332b}
+.pump.start{--pc:#163f7a}
+.pump.enddirect{--pc:#d1332b}
+.pump.enddirect .ph{background:#fff;color:#d1332b;border-color:#d1332b}
 .slopekey{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:4px}
 .slopekey span{display:inline-flex;align-items:center;gap:4px}
 #sheet.min #detail{display:none}
@@ -209,6 +215,13 @@ button{cursor:pointer}
     <label class="chk"><input type="checkbox" id="ovHof"> Hofnamen (Südtirol)</label>
     <label class="chk"><input type="checkbox" id="ovFlur"> Flurnamen (Südtirol)</label>
     <div class="hint" id="namesHint" hidden></div>
+    <label class="chk only-fs"><input type="checkbox" id="ovWater"> Hydranten und Wasserentnahmestellen</label>
+    <div class="legend only-fs" id="waterLegend" hidden>
+      <span class="wsym" style="background:#d1332b;color:#fff">H</span><span>Überflurhydrant</span>
+      <span class="wsym" style="background:#fff;color:#d1332b;border-color:#d1332b">H</span><span>Unterflur- / Wandhydrant</span>
+      <span class="wsym" style="background:#1f6fd1;color:#fff">W</span><span>Saugstelle, Löschteich, Löschwasserbehälter</span>
+    </div>
+    <div class="hint only-fs" id="waterHint" hidden></div>
     <label class="chk"><input type="checkbox" id="ovHill"> Schummerung</label>
     <label class="chk only-tour"><input type="checkbox" id="ovBike"> Fahrradtauglichkeit der Wege</label>
     <div class="legend" id="bikeLegend" hidden>
@@ -351,7 +364,8 @@ const state = Object.assign({
   waypoints:null, view:null, flur:false, hof:false, zSmall:11, zLarge:15, slopeRoute:false
 }, APP==="fs" ? {view:tourSaved.view||null, base:tourSaved.base||"topo", brouter:tourSaved.brouter||"https://brouter.de/brouter"} : {}, saved || {});
 state.app = APP;
-if(APP==="fs"){ state.bike=false; state.mtb=false; state.cycling=false; state.slopeRoute=false; }
+if(APP==="fs"){ state.bike=false; state.mtb=false; state.cycling=false; state.slopeRoute=false; if(state.water==null) state.water=true; }
+else state.water=false;
 state.fs = Object.assign({flow:800,out:10,pin:2,loss:1,hose:20,skip:8}, state.fs||{});
 if(state.fs.out1==null) state.fs.out1=state.fs.out;
 // E-MTB-Annahmen (Fahrzeit und Akkuverbrauch); Reichweiten Eco plus/Auto = Erfahrungswerte Amflow PR, 800 Wh
@@ -407,6 +421,7 @@ const style = {
     namesFlur:{type:"geojson",data:{type:"FeatureCollection",features:[]},
       attribution:'Flur- und Hofnamen: <a href="https://flurnamen.natura.museum">Flurnamen Südtirols, Naturmuseum Südtirol</a> (CC BY-NC-ND 4.0)'},
     namesHof:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
+    water:{type:"geojson",data:{type:"FeatureCollection",features:[]}},
     route:{type:"geojson",data:{type:"FeatureCollection",features:[]},lineMetrics:true}
   },
   layers:[
@@ -437,7 +452,18 @@ const style = {
       paint:{"text-color":"#5a1f12","text-halo-color":"rgba(255,255,255,0.95)","text-halo-width":1.5}},
     {id:"route-outline",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#14101a","line-opacity":0.6,"line-width":["interpolate",["linear"],["zoom"],10,9,16,14]}},
     {id:"route-casing",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],10,7,16,11]}},
-    {id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":ROUTE_COLOR,"line-width":["interpolate",["linear"],["zoom"],10,4,16,7]}}
+    {id:"route-line",type:"line",source:"route",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":ROUTE_COLOR,"line-width":["interpolate",["linear"],["zoom"],10,4,16,7]}},
+    // Hydranten und Wasserentnahmestellen (OpenStreetMap), über der Leitung, damit sie sichtbar bleiben
+    {id:"water-dot",type:"circle",source:"water",minzoom:12,layout:{visibility:"none"},
+      paint:{"circle-radius":["interpolate",["linear"],["zoom"],12,3.5,15,8,18,11],
+        "circle-color":["match",["get","k"],"pillar","#d1332b","hydrant","#ffffff","#1f6fd1"],
+        "circle-stroke-color":["match",["get","k"],"hydrant","#d1332b","#ffffff"],"circle-stroke-width":["interpolate",["linear"],["zoom"],12,1,15,2]}},
+    {id:"water-sym",type:"symbol",source:"water",minzoom:14,layout:{visibility:"none","text-field":["match",["get","k"],"pillar","H","hydrant","H","W"],
+      "text-font":["Noto Sans Bold"],"text-size":["interpolate",["linear"],["zoom"],14,9,18,13],"text-allow-overlap":true,"text-ignore-placement":true},
+      paint:{"text-color":["match",["get","k"],"hydrant","#d1332b","#ffffff"]}},
+    {id:"water-label",type:"symbol",source:"water",minzoom:15.5,layout:{visibility:"none","text-field":["get","lbl"],"text-font":["Noto Sans Bold"],
+      "text-size":11,"text-anchor":"left","text-offset":[1.1,0],"text-optional":true},
+      paint:{"text-color":"#7a1a14","text-halo-color":"rgba(255,255,255,0.95)","text-halo-width":1.5}}
   ]
 };
 
@@ -462,6 +488,8 @@ function applyLayers(){
   vis("wmHiking",state.hiking); vis("wmMtb",state.mtb); vis("wmCycling",state.cycling);
   vis("wmHikingS",state.hiking); vis("wmMtbS",state.mtb); vis("wmCyclingS",state.cycling); vis("hill",state.hill);
   ["bike-casing","bike-line","bike-no"].forEach(l=>vis(l,state.bike));
+  ["water-dot","water-sym","water-label"].forEach(l=>vis(l,state.water));
+  $("ovWater").checked=!!state.water; $("waterLegend").hidden=!state.water; $("waterHint").hidden=!state.water;
   document.querySelectorAll("#baseSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.base===state.base));
   $("ovHiking").checked=state.hiking; $("ovMtb").checked=state.mtb; $("ovCycling").checked=state.cycling;
   $("ovHill").checked=state.hill; $("ovBike").checked=state.bike;
@@ -512,6 +540,7 @@ async function loadNames(){
   }
 }
 $("ovBike").onchange=e=>{state.bike=e.target.checked;applyLayers();if(state.bike)loadBike();};
+$("ovWater").onchange=e=>{state.water=e.target.checked;applyLayers();if(state.water)loadWater();};
 $("exag").oninput=e=>{state.exag=+e.target.value;applyLayers();};
 $("brouterUrl").onchange=e=>{state.brouter=e.target.value.trim()||"https://brouter.de/brouter";applyLayers();route();};
 $("btn3d").onclick=()=>{
@@ -603,6 +632,7 @@ $("btnPlan").onclick=()=>{ planning=!planning; $("btnPlan").setAttribute("aria-p
 $("btnBarUndo").onclick=()=>$("btnUndo").click();
 
 let pointPop=null;
+function showPop(pop){ if(pointPop) pointPop.remove(); pointPop=pop.addTo(map); pop.on("close",()=>{ if(pointPop===pop) pointPop=null; }); return pop; }
 function openPointMenu(i){
   if(pointPop){ pointPop.remove(); pointPop=null; }
   const n=state.waypoints.length, label=i===0?"Start A":(i===n-1?"Ziel Z":"Punkt "+i);
@@ -646,8 +676,15 @@ map.on("click",e=>{
   if(pointPop){ pointPop.remove(); pointPop=null; if(!planning) return; }
   if(!$("layers").hidden){ $("layers").hidden=true; $("btnLayers").setAttribute("aria-pressed",false); if(!planning) return; }
   if(planning){
-    pushHistory(); state.waypoints.push([e.lngLat.lng,e.lngLat.lat]); save(); renderMarkers(); route(); return;
+    // Punkt rastet an einem Hydranten / einer Entnahmestelle in der Nähe ein
+    const wf=waterAt(e.point,18);
+    const wsrc=wf&&waterFeats.get(wf.properties.osm.replace("/",""));   // exakte Koordinate, nicht die gerundete aus der Kachel
+    const ll=wf?(wsrc||wf).geometry.coordinates.slice():[e.lngLat.lng,e.lngLat.lat];
+    pushHistory(); state.waypoints.push(ll); save(); renderMarkers(); route();
+    if(wf) setStatus(["pillar","hydrant"].includes(wf.properties.k)?"Punkt am Hydranten gesetzt.":"Punkt an der Wasserentnahmestelle gesetzt.");
+    return;
   }
+  { const wf=waterAt(e.point,12); if(wf){ showWaterPopup(wf); return; } }
   if(state.flur||state.hof){
     const box=[[e.point.x-6,e.point.y-6],[e.point.x+6,e.point.y+6]];
     const nf=map.queryRenderedFeatures(box,{layers:["hof-label","hof-dot","flur-label"].filter(l=>map.getLayoutProperty(l,"visibility")==="visible")})[0];
@@ -843,6 +880,11 @@ const BAR_PER_M = 1/10.2;   // Höhendruck: 1 bar je 10,2 m Wassersäule
 let fsResult=null, fsSeq=0, pumpMarkers=[];
 const fmtBar=v=>v.toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})+" bar";
 function clearPumps(){ pumpMarkers.forEach(m=>m.remove()); pumpMarkers=[]; }
+// Pumpen-Nadel: Kopf mit Beschriftung, Stiel, Spitze (Mitte der Spitze = Standort, daher Marker-Offset [0,5])
+function pumpPin(cls,label){ const el=document.createElement("div"); el.className=cls;
+  const h=document.createElement("div"); h.className="ph"; h.textContent=label;
+  const st=document.createElement("div"); st.className="ps"; const t=document.createElement("div"); t.className="pt";
+  el.append(h,st,t); return el; }
 
 // Route gleichmäßig in Schritte von 5 m teilen und Höhen aus dem Geländemodell holen
 async function resampleRoute(step){
@@ -1001,7 +1043,7 @@ async function updateFs(){
     const t2=document.createElement("small"); t2.textContent=extra;
     li.append(b,t1,t2); li.onclick=()=>map.flyTo({center:[pt.lng,pt.lat],zoom:Math.max(map.getZoom(),16)});
     list.append(li);
-    const el=document.createElement("div"); el.className="pump"+(pu.kind==="end"?" end":pu.kind==="start"?" start":""); el.textContent=name;
+    const el=pumpPin("pump"+(pu.kind==="end"?" end":pu.kind==="start"?" start":""), name);
     el.title=`${name} – ${role}`;
     el.addEventListener("click",ev=>{ ev.stopPropagation();
       const div=document.createElement("div"); div.className="pop";
@@ -1012,9 +1054,9 @@ async function updateFs(){
       if(pu.kind!=="end") add("Ausgangsdruck",fmtBar(pu.kind==="start"?cfg.out1:cfg.out));
       if(prev) add("Abstand",fmtM(pt.d-prev.d));
       div.append(dl);
-      new maplibregl.Popup({offset:18}).setLngLat([pt.lng,pt.lat]).setDOMContent(div).addTo(map);
+      showPop(new maplibregl.Popup({offset:[0,-48],anchor:"bottom",closeOnClick:false}).setLngLat([pt.lng,pt.lat]).setDOMContent(div));
     });
-    pumpMarkers.push(new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,-16]}).setLngLat([pt.lng,pt.lat]).addTo(map));
+    pumpMarkers.push(new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,5]}).setLngLat([pt.lng,pt.lat]).addTo(map));
   });
   if(plan.endDirect){
     const pt=pts[plan.endDirect.i];
@@ -1022,8 +1064,8 @@ async function updateFs(){
     const t1=document.createElement("span"); t1.textContent=`Löschangriff direkt · km ${(pt.d/1000).toLocaleString("de-DE",{minimumFractionDigits:2,maximumFractionDigits:2})} · ${fmtM(pt.h)} · ${fmtBar(plan.endDirect.pin)}`;
     const t2=document.createElement("small"); t2.textContent=`Keine Endpumpe nötig: Druck über ${fmtBar(cfg.skip)}`;
     li.append(b,t1,t2); li.onclick=()=>map.flyTo({center:[pt.lng,pt.lat],zoom:Math.max(map.getZoom(),16)}); list.append(li);
-    const el=document.createElement("div"); el.className="pump enddirect"; el.textContent="Ende"; el.title="Löschangriff direkt";
-    pumpMarkers.push(new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,-16]}).setLngLat([pt.lng,pt.lat]).addTo(map));
+    const el=pumpPin("pump enddirect","Ende"); el.title="Löschangriff direkt";
+    pumpMarkers.push(new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,5]}).setLngLat([pt.lng,pt.lat]).addTo(map));
   }
   drawProfile();
 }
@@ -1155,6 +1197,60 @@ async function loadBike(){
   }catch(e){ $("bikeHint").textContent="Wegdaten nicht erreichbar (Overpass-Server ausgelastet). Später erneut versuchen."; }
   bikeBusy=false;
 }
+// ---------- Hydranten und Wasserentnahmestellen (OpenStreetMap über Overpass) ----------
+const waterFeats=new Map(), waterBoxes=[]; let waterBusy=false, waterT=null;
+function waterKind(t){
+  if(t.emergency==="fire_hydrant") return t["fire_hydrant:type"]==="pillar" ? "pillar" : "hydrant";
+  return t.emergency==="water_tank"?"tank":t.emergency==="fire_water_pond"?"pond":"suction";
+}
+function waterLabel(t){
+  const dn=t["fire_hydrant:diameter"]||t.diameter, p=[];
+  if(t.ref) p.push(t.ref);
+  if(dn) p.push("DN "+String(dn).replace(/\s*mm$/,""));
+  const v=t["water_tank:volume"]||t["water_volume"]; if(v) p.push(v+(/\d$/.test(v)?" m³":""));
+  return p.join(" · ");
+}
+async function loadWater(){
+  if(APP!=="fs"||!state.water) return;
+  if(map.getZoom()<12){ $("waterHint").textContent="Zum Anzeigen der Hydranten näher heranzoomen (Zoomstufe 12)."; return; }
+  const b=map.getBounds(), S=b.getSouth(),W=b.getWest(),N=b.getNorth(),E=b.getEast();
+  if(waterBoxes.some(q=>S>=q[0]&&W>=q[1]&&N<=q[2]&&E<=q[3])) return;   // Ausschnitt schon geladen
+  if(waterBusy) return; waterBusy=true;
+  const dy=(N-S)*0.5, dx=(E-W)*0.5, box=[S-dy,W-dx,N+dy,E+dx];        // großzügig laden, damit Verschieben nicht sofort nachlädt
+  $("waterHint").textContent="Hydranten werden geladen …";
+  const q=`[out:json][timeout:25];nwr["emergency"~"^(fire_hydrant|water_tank|suction_point|fire_water_pond)$"](${box.map(v=>v.toFixed(5)).join(",")});out center tags;`;
+  try{
+    const r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}});
+    if(!r.ok) throw new Error(r.status);
+    const j=await r.json();
+    j.elements.forEach(el=>{ const lon=el.lon??(el.center&&el.center.lon), lat=el.lat??(el.center&&el.center.lat); if(lon==null) return;
+      const t=el.tags||{}; waterFeats.set(el.type+el.id,{type:"Feature",properties:Object.assign({},t,{k:waterKind(t),lbl:waterLabel(t),osm:el.type+"/"+el.id}),geometry:{type:"Point",coordinates:[lon,lat]}}); });
+    waterBoxes.push(box);
+    map.getSource("water").setData({type:"FeatureCollection",features:[...waterFeats.values()]});
+    const n=[...waterFeats.values()].filter(f=>{const [x,y]=f.geometry.coordinates;return y>=S&&y<=N&&x>=W&&x<=E;}).length;
+    $("waterHint").textContent=`${n} Hydranten bzw. Entnahmestellen im Ausschnitt (OpenStreetMap, nicht unbedingt vollständig). Antippen für Details; beim Punktesetzen rastet ein Punkt am Hydranten ein.`;
+  }catch(e){ $("waterHint").textContent="Hydranten-Daten nicht erreichbar (Overpass-Server ausgelastet). Später erneut versuchen."; }
+  waterBusy=false;
+}
+const WATER_NAMES={pillar:"Überflurhydrant",hydrant:"Hydrant",tank:"Löschwasserbehälter",pond:"Löschteich",suction:"Saugstelle / Wasserentnahme"};
+function showWaterPopup(f){
+  const p=f.properties; const div=document.createElement("div"); div.className="pop";
+  let title=WATER_NAMES[p.k]; if(p.k==="hydrant") title=p["fire_hydrant:type"]==="underground"?"Unterflurhydrant":p["fire_hydrant:type"]==="wall"?"Wandhydrant":"Hydrant";
+  const h=document.createElement("strong"); h.textContent=title+(p.name?" – "+p.name:""); div.append(h);
+  const dl=document.createElement("dl");
+  const add=(k,v)=>{ if(v==null||v==="") return; const dt=document.createElement("dt"),dd=document.createElement("dd"); dt.textContent=k; dd.textContent=v; dl.append(dt,dd); };
+  add("Nummer",p.ref); add("Durchmesser",(p["fire_hydrant:diameter"]||p.diameter)?"DN "+String(p["fire_hydrant:diameter"]||p.diameter).replace(/\s*mm$/,""):null);
+  add("Druck",p["fire_hydrant:pressure"]||p.pressure?String(p["fire_hydrant:pressure"]||p.pressure).replace(/^suction$/,"Saugbetrieb")+(/\d$/.test(p["fire_hydrant:pressure"]||p.pressure)?" bar":""):null);
+  add("Leistung",p.flow_capacity?p.flow_capacity+(/\d$/.test(p.flow_capacity)?" l/min":""):null);
+  add("Kupplungen",[p.couplings,p["couplings:type"],p["couplings:diameters"]].filter(Boolean).join(" · "));
+  add("Volumen",p["water_tank:volume"]||p.water_volume); add("Wasserquelle",p.water_source); add("Lage",p["fire_hydrant:position"]);
+  add("Betreiber",p.operator); add("Hinweis",p.description||p.note);
+  div.append(dl);
+  const a=document.createElement("a"); a.href="https://www.openstreetmap.org/"+p.osm; a.target="_blank"; a.rel="noopener"; a.textContent="In OpenStreetMap ansehen"; div.append(a);
+  showPop(new maplibregl.Popup({offset:10,closeOnClick:false}).setLngLat(f.geometry.coordinates).setDOMContent(div));
+}
+function waterAt(pt,r){ if(!state.water||!map.getLayer("water-dot")) return null;
+  return map.queryRenderedFeatures([[pt.x-r,pt.y-r],[pt.x+r,pt.y+r]],{layers:["water-dot"]})[0]||null; }
 const SAC={hiking:"T1",mountain_hiking:"T2",demanding_mountain_hiking:"T3",alpine_hiking:"T4",demanding_alpine_hiking:"T5",difficult_alpine_hiking:"T6"};
 const CLS={easy:"leicht fahrbar",medium:"mittel",hard:"schwer",no:"Radverbot / schieben",unknown:"keine Angabe"};
 function showWayPopup(f,ll){
@@ -1171,6 +1267,7 @@ function showWayPopup(f,ll){
 map.on("moveend",()=>{
   const c=map.getCenter(); state.view={c:[c.lng,c.lat],z:map.getZoom(),p:map.getPitch(),b:map.getBearing()}; save();
   clearTimeout(bikeT); bikeT=setTimeout(loadBike,700);
+  clearTimeout(waterT); waterT=setTimeout(loadWater,600);
 });
 
 // ---------- GPX ----------
@@ -1211,6 +1308,7 @@ function start(){ if(started) return; started=true; setSheet(state.sheetMin); se
     if(APP==="fs" && !state.waypoints.length) setStatus("„Punkte setzen“: zuerst die Wasserentnahme, dann den Leitungsverlauf bis zum Löschangriff.");
   });
   if(state.bike) loadBike();
+  loadWater();
   loadNames();
 }
 map.once("style.load",start); map.once("load",start);
